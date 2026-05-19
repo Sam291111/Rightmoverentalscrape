@@ -159,13 +159,14 @@ jobs:
           from pathlib import Path
 
           search_units = json.loads(os.environ["SEARCH_UNITS_JSON"])
+          outcodes = [unit["outcode"] for unit in search_units if unit.get("outcode")]
           Path(".workflow/smoke/seed_outcodes.txt").write_text(
-              "\n".join(unit["outcode"] for unit in search_units if unit.get("outcode")),
+              ("\n".join(outcodes) + ("\n" if outcodes else "")),
               encoding="utf-8",
           )
           PY
           search_args=()
-          while IFS= read -r outcode; do
+          while IFS= read -r outcode || [ -n "$outcode" ]; do
             if [ -n "$outcode" ]; then
               search_args+=(--seed-outcode "$outcode")
             fi
