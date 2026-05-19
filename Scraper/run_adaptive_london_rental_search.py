@@ -218,11 +218,18 @@ def _load_borough_outcodes(postcode_csv_path, borough_code_map, seed_boroughs=No
     }
 
 
+def _normalise_outcode_identifier(outcode_code):
+    code = str(outcode_code or "").strip().upper()
+    if code.startswith("5E"):
+        code = code[2:]
+    return code
+
+
 def _build_outcode_search_url(outcode, outcode_code):
+    location_code = _normalise_outcode_identifier(outcode_code)
     params = {
         "useLocationIdentifier": "true",
-        "locationIdentifier": f"OUTCODE^{outcode_code}",
-        "searchLocation": outcode,
+        "locationIdentifier": f"OUTCODE^{location_code}",
         "rent": "To rent",
         "_includeLetAgreed": "on",
         "index": "0",
