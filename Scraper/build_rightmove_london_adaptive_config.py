@@ -1,9 +1,9 @@
 """
-Build committed config for adaptive Rightmove London rental searches.
+Build committed config for postcode-first Rightmove London rental searches.
 
 This is a maintenance script, not part of the runtime scraping path. It reads
-the research source files once, derives a compact borough + outcode config,
-and writes a JSON bundle that the adaptive collector can consume directly.
+the borough-to-prefix CSV plus Rightmove outcode codes and writes a compact JSON
+bundle that the postcode-first collector can consume directly.
 """
 
 from __future__ import annotations
@@ -13,37 +13,27 @@ import csv
 import json
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
-
-import geopandas as gpd
+from urllib.parse import urlencode
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_BOROUGHS_PATH = (
-    SCRIPT_DIR.parent
-    / "London Boundary"
-    / "statistical-gis-boundaries-london"
-    / "ESRI"
-    / "London_Borough_Excluding_MHW.shp"
-)
-DEFAULT_SEED_LINKS_FILE = SCRIPT_DIR / "Borough_Links.txt"
-DEFAULT_POSTCODE_CSV = SCRIPT_DIR.parent / "london_postcodes-ons-postcodes-directory-feb22.csv"
+DEFAULT_PREFIX_CSV = SCRIPT_DIR.parent / "Postcode_prefix_toBorough.csv"
 DEFAULT_OUTCODE_MAPPINGS_JSON = SCRIPT_DIR.parent / "Rightmove outcode mappings.json"
 DEFAULT_OUTPUT_PATH = SCRIPT_DIR / "config" / "rightmove_london_adaptive_search.json"
 
+# Known valid Rightmove outcodes that are not present in the saved mapping file.
+EXTRA_RIGHTMOVE_OUTCODE_CODES = {
+    "E20": "6110",
+    "N1C": "6147",
+}
+
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Build compact config for adaptive London Rightmove rental searches.")
-    parser.add_argument("--boroughs-path", default=str(DEFAULT_BOROUGHS_PATH), help="London borough shapefile.")
+    parser = argparse.ArgumentParser(description="Build compact config for postcode-first London Rightmove rental searches.")
     parser.add_argument(
-        "--seed-links-file",
-        default=str(DEFAULT_SEED_LINKS_FILE),
-        help="Text file containing `Borough: URL` Rightmove borough seed links.",
-    )
-    parser.add_argument(
-        "--postcode-csv",
-        default=str(DEFAULT_POSTCODE_CSV),
-        help="ONS postcode CSV used to derive borough outcodes.",
+        "--prefix-csv",
+        default=str(DEFAULT_PREFIX_CSV),
+        help="CSV containing `prefix,borough` rows for London postcode prefixes.",
     )
     parser.add_argument(
         "--outcode-mappings-json",
@@ -53,7 +43,7 @@ def parse_args():
     parser.add_argument(
         "--output",
         default=str(DEFAULT_OUTPUT_PATH),
-        help="Path for the generated adaptive search config JSON.",
+        help="Path for the generated postcode-first search config JSON.",
     )
     return parser.parse_args()
 
@@ -78,11 +68,6 @@ def _normalise_borough_name(name):
     return aliases.get(text, text)
 
 
-def _postcode_outcode(postcode):
-    parts = str(postcode or "").strip().split()
-    return parts[0].upper() if parts else None
-
-
 def _normalise_outcode_identifier(outcode_code):
     code = str(outcode_code or "").strip().upper()
     if code.startswith("5E"):
@@ -90,48 +75,19 @@ def _normalise_outcode_identifier(outcode_code):
     return code
 
 
-def _load_borough_index(path):
-    boroughs_gdf = gpd.read_file(path)
-    boroughs = []
-    code_to_name = {}
-    for _, row in boroughs_gdf.iterrows():
-        name = str(row["NAME"]).strip()
-        code = str(row["GSS_CODE"]).strip()
-        if not name or not code:
-            continue
-        boroughs.append(
-            {
-                "name": name,
-                "normalised_name": _normalise_borough_name(name),
-                "borough_code": code,
-            }
-        )
-        code_to_name[code] = name
-    boroughs.sort(key=lambda item: item["name"])
-    return boroughs, code_to_name
-
-
-def _load_seed_links(path):
-    seed_map = {}
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or ":" not in line:
-            continue
-        name, url = line.split(":", 1)
-        borough_name = name.strip()
-        search_url = url.strip()
-        seed_map[_normalise_borough_name(borough_name)] = {
-            "source_name": borough_name,
-            "search_url": search_url,
-            "location_identifier": _extract_location_identifier(search_url),
-        }
-    return seed_map
-
-
-def _extract_location_identifier(search_url):
-    query = parse_qs(urlparse(search_url).query)
-    values = query.get("locationIdentifier")
-    return values[0] if values else None
+def _build_outcode_search_url(outcode, location_code):
+    params = {
+        "useLocationIdentifier": "true",
+        "locationIdentifier": f"OUTCODE^{location_code}",
+        "rent": "To rent",
+        "_includeLetAgreed": "on",
+        "index": "0",
+        "sortType": "6",
+        "channel": "RENT",
+        "transactionType": "LETTING",
+        "displayLocationIdentifier": f"{outcode}.html",
+    }
+    return "https://www.rightmove.co.uk/property-to-rent/find.html?" + urlencode(params)
 
 
 def _load_rightmove_outcode_mapping(path):
@@ -146,98 +102,111 @@ def _load_rightmove_outcode_mapping(path):
             "outcode": outcode,
             "code": str(code),
             "location_code": _normalise_outcode_identifier(code),
+            "mapping_source": "saved_mapping_json",
+        }
+    for outcode, code in EXTRA_RIGHTMOVE_OUTCODE_CODES.items():
+        mapping[outcode] = {
+            "outcode": outcode,
+            "code": str(code),
+            "location_code": _normalise_outcode_identifier(code),
+            "mapping_source": "manual_override",
         }
     return mapping
 
 
-def _load_borough_outcode_counts(postcode_csv_path, code_to_name, valid_outcodes):
-    borough_outcodes = {name: {} for name in code_to_name.values()}
-    with Path(postcode_csv_path).open(encoding="utf-8-sig", newline="") as handle:
+def _load_prefix_rows(path):
+    seen_prefixes = {}
+    rows = []
+    with Path(path).open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
-            borough_code = str(row.get("oslaua") or "").strip()
-            borough_name = code_to_name.get(borough_code)
-            if not borough_name:
+            prefix = str(row.get("prefix") or "").strip().upper()
+            borough = str(row.get("borough") or "").strip()
+            if not prefix or not borough:
                 continue
-            if str(row.get("doterm") or "").strip():
-                continue
-            outcode = _postcode_outcode(row.get("pcds") or row.get("pcd"))
-            if not outcode or outcode not in valid_outcodes:
-                continue
-            counts = borough_outcodes[borough_name]
-            counts[outcode] = counts.get(outcode, 0) + 1
-    return borough_outcodes
-
-
-def build_config(boroughs_path, seed_links_file, postcode_csv, outcode_mappings_json):
-    boroughs, code_to_name = _load_borough_index(boroughs_path)
-    seed_links = _load_seed_links(seed_links_file)
-    outcode_mapping = _load_rightmove_outcode_mapping(outcode_mappings_json)
-    borough_outcode_counts = _load_borough_outcode_counts(postcode_csv, code_to_name, set(outcode_mapping))
-
-    config_boroughs = []
-    for borough in boroughs:
-        seed = seed_links.get(borough["normalised_name"])
-        counts = borough_outcode_counts.get(borough["name"], {})
-        outcodes = []
-        for outcode, postcode_count in sorted(counts.items(), key=lambda item: (-item[1], item[0])):
-            mapping = outcode_mapping.get(outcode)
-            if not mapping:
-                continue
-            outcodes.append(
+            existing = seen_prefixes.get(prefix)
+            if existing and existing != borough:
+                raise RuntimeError(f"Prefix {prefix} is mapped to multiple boroughs: {existing!r} and {borough!r}")
+            seen_prefixes[prefix] = borough
+            rows.append(
                 {
-                    "outcode": outcode,
-                    "code": mapping["code"],
-                    "location_code": mapping["location_code"],
-                    "postcode_count": postcode_count,
+                    "outcode": prefix,
+                    "borough": borough,
+                    "normalised_borough": _normalise_borough_name(borough),
                 }
             )
-        config_boroughs.append(
+    rows.sort(key=lambda item: (item["normalised_borough"], item["outcode"]))
+    return rows
+
+
+def build_config(prefix_csv, outcode_mappings_json):
+    mapping = _load_rightmove_outcode_mapping(outcode_mappings_json)
+    prefix_rows = _load_prefix_rows(prefix_csv)
+
+    search_units = []
+    skipped_prefixes = []
+    for item in prefix_rows:
+        outcode = item["outcode"]
+        rightmove_mapping = mapping.get(outcode)
+        if not rightmove_mapping:
+            skipped_prefixes.append(
+                {
+                    "outcode": outcode,
+                    "borough": item["borough"],
+                    "reason": "missing_rightmove_mapping",
+                }
+            )
+            continue
+        location_code = rightmove_mapping["location_code"]
+        search_units.append(
             {
-                "name": borough["name"],
-                "normalised_name": borough["normalised_name"],
-                "borough_code": borough["borough_code"],
-                "seed_search_url": seed["search_url"] if seed else None,
-                "seed_location_identifier": seed["location_identifier"] if seed else None,
-                "seed_source_name": seed["source_name"] if seed else None,
-                "outcodes": outcodes,
+                "outcode": outcode,
+                "borough": item["borough"],
+                "normalised_borough": item["normalised_borough"],
+                "code": rightmove_mapping["code"],
+                "location_code": location_code,
+                "mapping_source": rightmove_mapping["mapping_source"],
+                "search_url": _build_outcode_search_url(outcode, location_code),
             }
         )
 
+    borough_counts = {}
+    for unit in search_units:
+        borough_counts[unit["borough"]] = borough_counts.get(unit["borough"], 0) + 1
+
     return {
         "generated_at": datetime.now().isoformat(),
+        "search_mode": "postcode_first",
         "sources": {
-            "boroughs_path": str(boroughs_path),
-            "seed_links_file": str(seed_links_file),
-            "postcode_csv": str(postcode_csv),
+            "prefix_csv": str(prefix_csv),
             "outcode_mappings_json": str(outcode_mappings_json),
+            "manual_rightmove_outcode_codes": EXTRA_RIGHTMOVE_OUTCODE_CODES,
         },
-        "borough_count": len(config_boroughs),
-        "boroughs_with_seed_links": sum(1 for item in config_boroughs if item.get("seed_search_url")),
-        "boroughs": config_boroughs,
+        "search_unit_count": len(search_units),
+        "borough_count": len(borough_counts),
+        "search_units": search_units,
+        "borough_outcode_counts": borough_counts,
+        "skipped_prefixes": skipped_prefixes,
     }
 
 
 def main():
     args = parse_args()
-    boroughs_path = _resolve_path(args.boroughs_path)
-    seed_links_file = _resolve_path(args.seed_links_file)
-    postcode_csv = _resolve_path(args.postcode_csv)
+    prefix_csv = _resolve_path(args.prefix_csv)
     outcode_mappings_json = _resolve_path(args.outcode_mappings_json)
     output_path = _resolve_path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     payload = build_config(
-        boroughs_path=boroughs_path,
-        seed_links_file=seed_links_file,
-        postcode_csv=postcode_csv,
+        prefix_csv=prefix_csv,
         outcode_mappings_json=outcode_mappings_json,
     )
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    print(f"Saved adaptive config: {output_path}")
-    print(f"Boroughs: {payload['borough_count']}")
-    print(f"With seed links: {payload['boroughs_with_seed_links']}")
+    print(f"Saved postcode-first config: {output_path}")
+    print(f"Search units: {payload['search_unit_count']}")
+    print(f"Boroughs represented: {payload['borough_count']}")
+    print(f"Skipped prefixes: {len(payload['skipped_prefixes'])}")
 
 
 if __name__ == "__main__":

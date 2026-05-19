@@ -1,9 +1,10 @@
 """
-Build Adaptive Search Chunk Manifest
+Build Postcode Search Chunk Manifest
 ===================================
 
-Reads the committed adaptive London search config and emits a GitHub Actions-
-friendly chunk manifest for splitting borough searches across multiple jobs.
+Reads the committed postcode-first London search config and emits a GitHub
+Actions-friendly chunk manifest for splitting outcode searches across multiple
+jobs.
 """
 
 from __future__ import annotations
@@ -19,17 +20,17 @@ DEFAULT_CONFIG_PATH = SCRIPT_DIR / "config" / "rightmove_london_adaptive_search.
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Build a chunk manifest for adaptive London search jobs.")
+    parser = argparse.ArgumentParser(description="Build a chunk manifest for postcode-first London search jobs.")
     parser.add_argument(
         "--config",
         default=str(DEFAULT_CONFIG_PATH),
-        help="Path to the committed adaptive search config JSON.",
+        help="Path to the committed postcode-first search config JSON.",
     )
     parser.add_argument(
-        "--boroughs-per-chunk",
+        "--searches-per-chunk",
         type=int,
-        default=4,
-        help="How many borough seed searches to run in each search chunk job.",
+        default=12,
+        help="How many outcode searches to run in each search chunk job.",
     )
     parser.add_argument(
         "--output",
@@ -47,35 +48,40 @@ def _resolve_path(path_arg):
 
 def main():
     args = parse_args()
-    if args.boroughs_per_chunk <= 0:
-        raise ValueError("--boroughs-per-chunk must be a positive integer.")
+    if args.searches_per_chunk <= 0:
+        raise ValueError("--searches-per-chunk must be a positive integer.")
 
     config_path = _resolve_path(args.config)
     payload = json.loads(config_path.read_text(encoding="utf-8"))
-    boroughs = [
-        item["name"]
-        for item in payload.get("boroughs", [])
-        if item.get("name") and item.get("seed_search_url")
+    search_units = payload.get("search_units", [])
+
+    unit_refs = [
+        {
+            "outcode": item["outcode"],
+            "borough": item["borough"],
+        }
+        for item in search_units
+        if item.get("outcode") and item.get("borough") and item.get("search_url")
     ]
 
-    chunk_count = max(1, math.ceil(len(boroughs) / args.boroughs_per_chunk)) if boroughs else 0
+    chunk_count = max(1, math.ceil(len(unit_refs) / args.searches_per_chunk)) if unit_refs else 0
     manifest = {
-        "total_boroughs": len(boroughs),
-        "boroughs_per_chunk": args.boroughs_per_chunk,
+        "total_search_units": len(unit_refs),
+        "searches_per_chunk": args.searches_per_chunk,
         "chunk_count": chunk_count,
         "include": [],
     }
 
     for chunk_index in range(chunk_count):
-        start_index = chunk_index * args.boroughs_per_chunk
-        end_index = min(len(boroughs), start_index + args.boroughs_per_chunk)
-        chunk_boroughs = boroughs[start_index:end_index]
+        start_index = chunk_index * args.searches_per_chunk
+        end_index = min(len(unit_refs), start_index + args.searches_per_chunk)
+        chunk_units = unit_refs[start_index:end_index]
         manifest["include"].append(
             {
                 "chunk_index": chunk_index,
                 "chunk_label": f"search-{chunk_index:03d}",
-                "borough_names": chunk_boroughs,
-                "borough_count": len(chunk_boroughs),
+                "search_units": chunk_units,
+                "search_unit_count": len(chunk_units),
             }
         )
 

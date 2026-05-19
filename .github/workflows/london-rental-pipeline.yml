@@ -4,25 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       pages:
-        description: Search result pages per borough/outcode area (`0` means auto-paginate until the site stops)
+        description: Search result pages per postcode search unit (`0` means auto-paginate until the site stops)
         type: number
         required: false
         default: 0
       max_results:
-        description: Maximum listings per borough/outcode area before enrichment (`0` means no cap)
-        type: number
-        required: false
-        default: 0
-      max_outcodes_per_borough:
-        description: Optional cap on child outcode splits for capped boroughs (`0` means use all configured outcodes)
+        description: Maximum listings per postcode search unit before enrichment (`0` means no cap)
         type: number
         required: false
         default: 0
       search_chunk_size:
-        description: Borough seed searches per search job chunk
+        description: Postcode searches per search job chunk
         type: number
         required: false
-        default: 4
+        default: 12
       detail_chunk_size:
         description: Listings per detail enrichment chunk
         type: number
@@ -49,7 +44,6 @@ jobs:
       chunk_count: ${{ steps.manifest.outputs.chunk_count }}
       pages: ${{ steps.params.outputs.pages }}
       max_results: ${{ steps.params.outputs.max_results }}
-      max_outcodes_per_borough: ${{ steps.params.outputs.max_outcodes_per_borough }}
       search_chunk_size: ${{ steps.params.outputs.search_chunk_size }}
       detail_chunk_size: ${{ steps.params.outputs.detail_chunk_size }}
 
@@ -81,11 +75,10 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             pages="$(normalise_int "${{ inputs.pages }}" 0)"
             max_results="$(normalise_int "${{ inputs.max_results }}" 0)"
-            max_outcodes_per_borough="$(normalise_int "${{ inputs.max_outcodes_per_borough }}" 0)"
-            search_chunk_size="$(normalise_int "${{ inputs.search_chunk_size }}" 4)"
+            search_chunk_size="$(normalise_int "${{ inputs.search_chunk_size }}" 12)"
             detail_chunk_size="$(normalise_int "${{ inputs.detail_chunk_size }}" 400)"
             if [ "$search_chunk_size" -lt 1 ]; then
-              search_chunk_size=4
+              search_chunk_size=12
             fi
             if [ "$detail_chunk_size" -lt 1 ]; then
               detail_chunk_size=400
@@ -93,24 +86,22 @@ jobs:
           else
             pages=0
             max_results=0
-            max_outcodes_per_borough=0
-            search_chunk_size=4
+            search_chunk_size=12
             detail_chunk_size=400
           fi
 
           echo "pages=$pages" >> "$GITHUB_OUTPUT"
           echo "max_results=$max_results" >> "$GITHUB_OUTPUT"
-          echo "max_outcodes_per_borough=$max_outcodes_per_borough" >> "$GITHUB_OUTPUT"
           echo "search_chunk_size=$search_chunk_size" >> "$GITHUB_OUTPUT"
           echo "detail_chunk_size=$detail_chunk_size" >> "$GITHUB_OUTPUT"
-          echo "Using pages=$pages max_results=$max_results max_outcodes_per_borough=$max_outcodes_per_borough search_chunk_size=$search_chunk_size detail_chunk_size=$detail_chunk_size"
+          echo "Using pages=$pages max_results=$max_results search_chunk_size=$search_chunk_size detail_chunk_size=$detail_chunk_size"
 
       - name: Build adaptive search chunk manifest
         id: manifest
         run: |
           mkdir -p .workflow/dispatch
           python Scraper/build_adaptive_search_chunk_manifest.py \
-            --boroughs-per-chunk "${{ steps.params.outputs.search_chunk_size }}" \
+            --searches-per-chunk "${{ steps.params.outputs.search_chunk_size }}" \
             --output .workflow/dispatch/search_chunk_manifest.json
           search_chunk_matrix="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/dispatch/search_chunk_manifest.json").read_text()); print(json.dumps(data["include"]))')"
           search_chunk_count="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/dispatch/search_chunk_manifest.json").read_text()); print(data["chunk_count"])')"
@@ -150,7 +141,7 @@ jobs:
 
       - name: Run adaptive rental search chunk
         env:
-          SEARCH_BOROUGHS_JSON: ${{ toJson(matrix.chunk.borough_names) }}
+          SEARCH_UNITS_JSON: ${{ toJson(matrix.chunk.search_units) }}
         run: |
           mkdir -p ".workflow/search/${{ matrix.chunk.chunk_label }}"
           python3 - <<'PY'
@@ -158,19 +149,18 @@ jobs:
           import os
           from pathlib import Path
 
-          boroughs = json.loads(os.environ["SEARCH_BOROUGHS_JSON"])
-          Path(".workflow/search/seed_boroughs.txt").write_text("\n".join(boroughs), encoding="utf-8")
+          search_units = json.loads(os.environ["SEARCH_UNITS_JSON"])
+          Path(".workflow/search/seed_outcodes.txt").write_text(
+              "\n".join(unit["outcode"] for unit in search_units if unit.get("outcode")),
+              encoding="utf-8",
+          )
           PY
-          seed_args=()
-          while IFS= read -r borough; do
-            if [ -n "$borough" ]; then
-              seed_args+=(--seed-borough "$borough")
+          search_args=()
+          while IFS= read -r outcode; do
+            if [ -n "$outcode" ]; then
+              search_args+=(--seed-outcode "$outcode")
             fi
-          done < .workflow/search/seed_boroughs.txt
-          max_outcodes_args=()
-          if [ "${{ needs.search_manifest.outputs.max_outcodes_per_borough }}" -gt 0 ]; then
-            max_outcodes_args+=(--max-outcodes-per-borough "${{ needs.search_manifest.outputs.max_outcodes_per_borough }}")
-          fi
+          done < .workflow/search/seed_outcodes.txt
           python Scraper/run_adaptive_london_rental_search.py \
             --pages "${{ needs.search_manifest.outputs.pages }}" \
             --max-results "${{ needs.search_manifest.outputs.max_results }}" \
@@ -178,8 +168,7 @@ jobs:
             --headless \
             --run-dir ".workflow/search/${{ matrix.chunk.chunk_label }}/run" \
             --user-data-dir ".workflow/search/${{ matrix.chunk.chunk_label }}/browser_profile" \
-            "${seed_args[@]}" \
-            "${max_outcodes_args[@]}"
+            "${search_args[@]}"
 
       - name: Prepare search chunk artifact
         shell: bash
