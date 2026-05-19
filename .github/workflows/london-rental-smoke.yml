@@ -1,0 +1,403 @@
+name: London Rental Smoke Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed_outcodes:
+        description: Comma-separated postcode outcodes to test quickly
+        type: string
+        required: false
+        default: NW3,E20,E98
+      pages:
+        description: Search result pages per postcode search unit
+        type: number
+        required: false
+        default: 1
+      max_results:
+        description: Maximum listings per postcode search unit before enrichment
+        type: number
+        required: false
+        default: 20
+      search_chunk_size:
+        description: Postcode searches per search job chunk
+        type: number
+        required: false
+        default: 2
+      detail_chunk_size:
+        description: Listings per detail enrichment chunk
+        type: number
+        required: false
+        default: 5
+
+permissions:
+  contents: read
+
+concurrency:
+  group: london-rental-smoke
+  cancel-in-progress: true
+
+jobs:
+  search_manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      search_chunk_matrix: ${{ steps.manifest.outputs.search_chunk_matrix }}
+      search_chunk_count: ${{ steps.manifest.outputs.search_chunk_count }}
+      chunk_matrix: ${{ steps.manifest.outputs.chunk_matrix }}
+      chunk_count: ${{ steps.manifest.outputs.chunk_count }}
+      pages: ${{ steps.params.outputs.pages }}
+      max_results: ${{ steps.params.outputs.max_results }}
+      search_chunk_size: ${{ steps.params.outputs.search_chunk_size }}
+      detail_chunk_size: ${{ steps.params.outputs.detail_chunk_size }}
+      seed_outcodes: ${{ steps.params.outputs.seed_outcodes }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Resolve run parameters
+        id: params
+        shell: bash
+        run: |
+          normalise_int() {
+            local value="$1"
+            local fallback="$2"
+            if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+              value="$fallback"
+            fi
+            if [ "$value" -lt 0 ]; then
+              value="$fallback"
+            fi
+            echo "$value"
+          }
+
+          pages="$(normalise_int "${{ inputs.pages }}" 1)"
+          max_results="$(normalise_int "${{ inputs.max_results }}" 20)"
+          search_chunk_size="$(normalise_int "${{ inputs.search_chunk_size }}" 2)"
+          detail_chunk_size="$(normalise_int "${{ inputs.detail_chunk_size }}" 5)"
+          seed_outcodes="$(printf '%s' "${{ inputs.seed_outcodes }}" | tr '[:lower:]' '[:upper:]' | tr -d '[:space:]')"
+
+          if [ "$search_chunk_size" -lt 1 ]; then
+            search_chunk_size=2
+          fi
+          if [ "$detail_chunk_size" -lt 1 ]; then
+            detail_chunk_size=5
+          fi
+
+          echo "pages=$pages" >> "$GITHUB_OUTPUT"
+          echo "max_results=$max_results" >> "$GITHUB_OUTPUT"
+          echo "search_chunk_size=$search_chunk_size" >> "$GITHUB_OUTPUT"
+          echo "detail_chunk_size=$detail_chunk_size" >> "$GITHUB_OUTPUT"
+          echo "seed_outcodes=$seed_outcodes" >> "$GITHUB_OUTPUT"
+          echo "Using pages=$pages max_results=$max_results search_chunk_size=$search_chunk_size detail_chunk_size=$detail_chunk_size seed_outcodes=$seed_outcodes"
+
+      - name: Build smoke search chunk manifest
+        id: manifest
+        shell: bash
+        run: |
+          mkdir -p .workflow/dispatch
+          manifest_args=()
+          IFS=',' read -ra seed_items <<< "${{ steps.params.outputs.seed_outcodes }}"
+          for outcode in "${seed_items[@]}"; do
+            if [ -n "$outcode" ]; then
+              manifest_args+=(--seed-outcode "$outcode")
+            fi
+          done
+          python Scraper/build_adaptive_search_chunk_manifest.py \
+            --searches-per-chunk "${{ steps.params.outputs.search_chunk_size }}" \
+            --output .workflow/dispatch/smoke_search_chunk_manifest.json \
+            "${manifest_args[@]}"
+          search_chunk_matrix="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/dispatch/smoke_search_chunk_manifest.json").read_text()); print(json.dumps(data["include"]))')"
+          search_chunk_count="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/dispatch/smoke_search_chunk_manifest.json").read_text()); print(data["chunk_count"])')"
+          echo "search_chunk_matrix=$search_chunk_matrix" >> "$GITHUB_OUTPUT"
+          echo "search_chunk_count=$search_chunk_count" >> "$GITHUB_OUTPUT"
+          echo "chunk_matrix=[]" >> "$GITHUB_OUTPUT"
+          echo "chunk_count=0" >> "$GITHUB_OUTPUT"
+          echo "Search chunk count: $search_chunk_count"
+
+  search_chunks:
+    needs: search_manifest
+    if: ${{ needs.search_manifest.outputs.search_chunk_count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        chunk: ${{ fromJson(needs.search_manifest.outputs.search_chunk_matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r Scraper/requirements.txt
+
+      - name: Run smoke rental search chunk
+        env:
+          SEARCH_UNITS_JSON: ${{ toJson(matrix.chunk.search_units) }}
+        run: |
+          mkdir -p ".workflow/smoke/search/${{ matrix.chunk.chunk_label }}"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          search_units = json.loads(os.environ["SEARCH_UNITS_JSON"])
+          Path(".workflow/smoke/seed_outcodes.txt").write_text(
+              "\n".join(unit["outcode"] for unit in search_units if unit.get("outcode")),
+              encoding="utf-8",
+          )
+          PY
+          search_args=()
+          while IFS= read -r outcode; do
+            if [ -n "$outcode" ]; then
+              search_args+=(--seed-outcode "$outcode")
+            fi
+          done < .workflow/smoke/seed_outcodes.txt
+          python Scraper/run_adaptive_london_rental_search.py \
+            --pages "${{ needs.search_manifest.outputs.pages }}" \
+            --max-results "${{ needs.search_manifest.outputs.max_results }}" \
+            --output-dir ".workflow/smoke/search/${{ matrix.chunk.chunk_label }}/output" \
+            --headless \
+            --run-dir ".workflow/smoke/search/${{ matrix.chunk.chunk_label }}/run" \
+            --user-data-dir ".workflow/smoke/search/${{ matrix.chunk.chunk_label }}/browser_profile" \
+            "${search_args[@]}"
+
+      - name: Prepare smoke search chunk artifact
+        shell: bash
+        run: |
+          mkdir -p ".workflow/smoke/search_artifacts/${{ matrix.chunk.chunk_label }}"
+          search_json="$(ls -t .workflow/smoke/search/${{ matrix.chunk.chunk_label }}/output/rightmove_rental_search_results_*.json | head -n1)"
+          search_csv="$(ls -t .workflow/smoke/search/${{ matrix.chunk.chunk_label }}/output/rightmove_rental_search_results_*.csv | head -n1)"
+          cp "$search_json" ".workflow/smoke/search_artifacts/${{ matrix.chunk.chunk_label }}/search_results.json"
+          cp "$search_csv" ".workflow/smoke/search_artifacts/${{ matrix.chunk.chunk_label }}/search_results.csv"
+          if [ -f ".workflow/smoke/search/${{ matrix.chunk.chunk_label }}/run/adaptive_london_search_report.json" ]; then
+            cp ".workflow/smoke/search/${{ matrix.chunk.chunk_label }}/run/adaptive_london_search_report.json" ".workflow/smoke/search_artifacts/${{ matrix.chunk.chunk_label }}/adaptive_london_search_report.json"
+          fi
+
+      - name: Upload smoke search chunk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-${{ matrix.chunk.chunk_label }}
+          path: .workflow/smoke/search_artifacts/${{ matrix.chunk.chunk_label }}
+          if-no-files-found: error
+          retention-days: 14
+
+  search_finalize:
+    needs:
+      - search_manifest
+      - search_chunks
+    if: ${{ always() && needs.search_manifest.result == 'success' && needs.search_chunks.result != 'failure' && needs.search_manifest.outputs.search_chunk_count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      chunk_matrix: ${{ steps.manifest.outputs.chunk_matrix }}
+      chunk_count: ${{ steps.manifest.outputs.chunk_count }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r Scraper/requirements.txt
+
+      - name: Download smoke search chunk artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: smoke-search-*
+          path: .workflow/smoke/search_chunks
+
+      - name: Merge smoke search chunks
+        run: |
+          mkdir -p .workflow/smoke/search_bundle
+          python Scraper/merge_rental_search_chunks.py \
+            --input-dir .workflow/smoke/search_chunks \
+            --output-dir .workflow/smoke/search_bundle
+
+      - name: Prepare merged smoke search bundle and detail manifest
+        id: manifest
+        shell: bash
+        run: |
+          search_json="$(ls -t .workflow/smoke/search_bundle/rightmove_rental_search_results_*.json | head -n1)"
+          search_csv="$(ls -t .workflow/smoke/search_bundle/rightmove_rental_search_results_*.csv | head -n1)"
+          cp "$search_json" .workflow/smoke/search_bundle/search_results.json
+          cp "$search_csv" .workflow/smoke/search_bundle/search_results.csv
+          python Scraper/build_rental_detail_chunk_manifest.py \
+            --search-results-json .workflow/smoke/search_bundle/search_results.json \
+            --chunk-size "${{ needs.search_manifest.outputs.detail_chunk_size }}" \
+            --output .workflow/smoke/search_bundle/chunk_manifest.json
+          chunk_matrix="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/smoke/search_bundle/chunk_manifest.json").read_text()); print(json.dumps(data["include"]))')"
+          chunk_count="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/smoke/search_bundle/chunk_manifest.json").read_text()); print(data["chunk_count"])')"
+          echo "chunk_matrix=$chunk_matrix" >> "$GITHUB_OUTPUT"
+          echo "chunk_count=$chunk_count" >> "$GITHUB_OUTPUT"
+          echo "Detail chunk count: $chunk_count"
+
+      - name: Upload smoke search artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rental-smoke-search-bundle
+          path: .workflow/smoke/search_bundle
+          if-no-files-found: error
+          retention-days: 14
+
+  detail_chunks:
+    needs: search_finalize
+    if: ${{ needs.search_finalize.outputs.chunk_count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        chunk: ${{ fromJson(needs.search_finalize.outputs.chunk_matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r Scraper/requirements.txt
+
+      - name: Download smoke search artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rental-smoke-search-bundle
+          path: .workflow/smoke/search_bundle
+
+      - name: Run smoke rental detail chunk
+        run: |
+          mkdir -p ".workflow/smoke/detail/${{ matrix.chunk.chunk_label }}"
+          python Scraper/rightmove_rental_detail_scraper.py \
+            --search-results-json .workflow/smoke/search_bundle/search_results.json \
+            --start-index "${{ matrix.chunk.start_index }}" \
+            --end-index "${{ matrix.chunk.end_index }}" \
+            --output-dir ".workflow/smoke/detail/${{ matrix.chunk.chunk_label }}/output" \
+            --run-dir ".workflow/smoke/detail/${{ matrix.chunk.chunk_label }}/checkpoint" \
+            --no-interactive \
+            --headless \
+            --user-data-dir ".workflow/smoke/detail/${{ matrix.chunk.chunk_label }}/browser_profile"
+
+      - name: Prepare smoke detail chunk artifact
+        shell: bash
+        run: |
+          mkdir -p ".workflow/smoke/detail_artifacts/${{ matrix.chunk.chunk_label }}"
+          json_path="$(ls -t .workflow/smoke/detail/${{ matrix.chunk.chunk_label }}/output/rightmove_rental_enriched_results_*.json | head -n1)"
+          csv_path="$(ls -t .workflow/smoke/detail/${{ matrix.chunk.chunk_label }}/output/rightmove_rental_enriched_results_*.csv | head -n1)"
+          cp "$json_path" ".workflow/smoke/detail_artifacts/${{ matrix.chunk.chunk_label }}/$(basename "$json_path")"
+          cp "$csv_path" ".workflow/smoke/detail_artifacts/${{ matrix.chunk.chunk_label }}/$(basename "$csv_path")"
+
+      - name: Upload smoke detail chunk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-detail-${{ matrix.chunk.chunk_label }}
+          path: .workflow/smoke/detail_artifacts/${{ matrix.chunk.chunk_label }}
+          if-no-files-found: error
+          retention-days: 14
+
+  finalize:
+    needs:
+      - search_finalize
+      - detail_chunks
+    if: ${{ always() && needs.search_finalize.result == 'success' && needs.detail_chunks.result != 'failure' && needs.search_finalize.outputs.chunk_count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r Scraper/requirements.txt
+
+      - name: Download smoke search artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rental-smoke-search-bundle
+          path: .workflow/smoke/search_bundle
+
+      - name: Download smoke detail chunk artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: smoke-detail-*
+          path: .workflow/smoke/detail_chunks
+
+      - name: Merge enriched smoke chunks
+        run: |
+          mkdir -p .workflow/smoke/final_output
+          python Scraper/merge_rental_enriched_chunks.py \
+            --input-dir .workflow/smoke/detail_chunks \
+            --output-dir .workflow/smoke/final_output
+
+      - name: Clean merged smoke dataset
+        run: |
+          enriched_json="$(ls -t .workflow/smoke/final_output/rightmove_rental_enriched_results_*.json | head -n1)"
+          python Scraper/clean_rightmove_dataset.py \
+            --input "$enriched_json" \
+            --output-dir .workflow/smoke/final_output
+
+      - name: Clip cleaned smoke dataset to London
+        run: |
+          cleaned_json="$(python3 -c "from pathlib import Path; files=sorted([p for p in Path('.workflow/smoke/final_output').glob('rightmove_cleaned_dataset_*.json') if '_qc_' not in p.name], key=lambda p: p.stat().st_mtime, reverse=True); print(files[0])")"
+          python Scraper/clip_rightmove_dataset_to_london.py \
+            --input "$cleaned_json" \
+            --boundary-path "London Boundary/gla/London_GLA_Boundary.shp" \
+            --boroughs-path "London Boundary/statistical-gis-boundaries-london/ESRI/London_Borough_Excluding_MHW.shp" \
+            --output-dir .workflow/smoke/final_output
+
+      - name: Rebuild smoke history and dashboard data
+        run: |
+          python Scraper/build_london_rental_history.py \
+            --input-dir .workflow/smoke/final_output \
+            --output-dir .workflow/smoke/final_output/history \
+            --pages-data-dir .workflow/smoke/docs_data
+
+      - name: Upload smoke outputs artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: london-rental-smoke-output
+          path: |
+            .workflow/smoke/final_output
+            .workflow/smoke/docs_data
+          if-no-files-found: warn
+          retention-days: 14

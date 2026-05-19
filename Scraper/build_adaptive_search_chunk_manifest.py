@@ -33,6 +33,11 @@ def parse_args():
         help="How many outcode searches to run in each search chunk job.",
     )
     parser.add_argument(
+        "--seed-outcode",
+        action="append",
+        help="Optional outcode(s) to limit the manifest to. Repeat the flag to include multiple outcodes.",
+    )
+    parser.add_argument(
         "--output",
         help="Optional path to write the chunk manifest JSON.",
     )
@@ -54,6 +59,11 @@ def main():
     config_path = _resolve_path(args.config)
     payload = json.loads(config_path.read_text(encoding="utf-8"))
     search_units = payload.get("search_units", [])
+    allowed_outcodes = {
+        str(value).strip().upper()
+        for value in (args.seed_outcode or [])
+        if str(value).strip()
+    }
 
     unit_refs = [
         {
@@ -61,7 +71,12 @@ def main():
             "borough": item["borough"],
         }
         for item in search_units
-        if item.get("outcode") and item.get("borough") and item.get("search_url")
+        if (
+            item.get("outcode")
+            and item.get("borough")
+            and item.get("search_url")
+            and (not allowed_outcodes or str(item["outcode"]).strip().upper() in allowed_outcodes)
+        )
     ]
 
     chunk_count = max(1, math.ceil(len(unit_refs) / args.searches_per_chunk)) if unit_refs else 0
