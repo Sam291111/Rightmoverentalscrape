@@ -35,6 +35,8 @@ DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "output"
 PHOTO_URL_RE = re.compile(r"https://media\.rightmove\.co\.uk/[^\s\"'>]*property-photo[^\s\"'>]+", re.IGNORECASE)
 FLOORPLAN_URL_RE = re.compile(r"https://media\.rightmove\.co\.uk/[^\s\"'>]*property-floorplan[^\s\"'>]+", re.IGNORECASE)
 EPC_URL_RE = re.compile(r"https://media\.rightmove\.co\.uk/[^\s\"'>]*property-epc[^\s\"'>]+", re.IGNORECASE)
+HTTP_ERROR_RE = re.compile(r"\bHTTP ERROR (\d{3})\b", re.IGNORECASE)
+BROWSER_ERROR_RE = re.compile(r"\b(ERR_[A-Z0-9_]+)\b")
 POSTCODE_RE = re.compile(
     r"(?i)\b(?:GIR\s?0AA|(?:[A-PR-UWYZ][A-HK-Y]?\d[A-HJKPSTUW]?|"
     r"[A-PR-UWYZ][A-HK-Y]?\d{2}|[A-PR-UWYZ][A-HK-Y]?\d[ABEHMNPRVWXY])"
@@ -297,6 +299,53 @@ def _enable_network_blocking(driver):
         pass
 
 
+def _classify_listing_failure(driver, error, listing_url):
+    current_url = None
+    page_title = None
+    page_source_excerpt = ""
+    try:
+        current_url = driver.current_url
+    except Exception:
+        pass
+    try:
+        page_title = driver.title
+    except Exception:
+        pass
+    try:
+        page_source_excerpt = driver.page_source[:4000]
+    except Exception:
+        pass
+
+    combined_text = " ".join(
+        value for value in [str(error or ""), page_title or "", page_source_excerpt or ""] if value
+    )
+    http_match = HTTP_ERROR_RE.search(combined_text)
+    browser_error_match = BROWSER_ERROR_RE.search(combined_text)
+
+    failure_type = "unknown_error"
+    if http_match:
+        failure_type = "http_error"
+    elif browser_error_match:
+        failure_type = "browser_error"
+    elif error and "Page did not finish loading" in str(error):
+        failure_type = "page_load_timeout"
+    elif error and "Property content did not appear" in str(error):
+        failure_type = "detail_content_missing"
+
+    failure = {
+        "listing_url": listing_url,
+        "error": str(error) if error else "Unknown listing load error",
+        "failure_type": failure_type,
+        "current_url": current_url,
+        "page_title": page_title,
+    }
+    if http_match:
+        failure["http_status"] = int(http_match.group(1))
+    if browser_error_match:
+        failure["browser_error_code"] = browser_error_match.group(1)
+    return failure
+
+
 def _recreate_browser(driver, landing_url, reprompt, block_images, headless, user_data_dir):
     _safe_quit(driver)
     driver = setup_browser(block_images=block_images, headless=headless, user_data_dir=user_data_dir)
@@ -388,6 +437,23 @@ def _write_raw_page(run_dir, raw_page):
     file_path = raw_dir / f"rightmove_rental_detail_{raw_page['listing_id'] or 'unknown'}.json"
     with file_path.open("w", encoding="utf-8") as handle:
         json.dump(raw_page, handle, indent=2, ensure_ascii=False)
+
+
+def _failure_summary(failed_listings):
+    by_type = {}
+    http_status_counts = {}
+    browser_error_counts = {}
+    for item in failed_listings:
+        failure_type = item.get("failure_type") or "unknown_error"
+        by_type[failure_type] = by_type.get(failure_type, 0) + 1
+        http_status = item.get("http_status")
+        if http_status is not None:
+            key = str(http_status)
+            http_status_counts[key] = http_status_counts.get(key, 0) + 1
+        browser_error_code = item.get("browser_error_code")
+        if browser_error_code:
+            browser_error_counts[browser_error_code] = browser_error_counts.get(browser_error_code, 0) + 1
+    return by_type, http_status_counts, browser_error_counts
 
 
 def _normalise_space(value):
@@ -1234,12 +1300,10 @@ def main():
                     )
 
             if not ready:
-                failure = {
-                    "listing_id": listing_id,
-                    "listing_url": listing_url,
-                    "error": str(last_error) if last_error else "Unknown listing load error",
-                }
+                failure = _classify_listing_failure(driver, last_error, listing_url)
+                failure["listing_id"] = listing_id
                 failed_listings.append(failure)
+                failed_by_type, failed_http_status_counts, failed_browser_error_counts = _failure_summary(failed_listings)
                 progress_metadata = {
                     "generated_at": datetime.now().isoformat(),
                     "source_search_json": str(search_json),
@@ -1251,6 +1315,9 @@ def main():
                     "completed_count": len(completed_listing_ids),
                     "failed_count": len(failed_listings),
                     "failed_listings": failed_listings,
+                    "failed_by_type": failed_by_type,
+                    "failed_http_status_counts": failed_http_status_counts,
+                    "failed_browser_error_counts": failed_browser_error_counts,
                     "resume_enabled": bool(args.resume),
                     "block_images": bool(args.block_images),
                     "interactive": bool(args.interactive),
@@ -1284,6 +1351,7 @@ def main():
             if listing_key:
                 completed_listing_ids.add(listing_key)
 
+            failed_by_type, failed_http_status_counts, failed_browser_error_counts = _failure_summary(failed_listings)
             progress_metadata = {
                 "generated_at": datetime.now().isoformat(),
                 "source_search_json": str(search_json),
@@ -1295,6 +1363,9 @@ def main():
                 "completed_count": len(completed_listing_ids),
                 "failed_count": len(failed_listings),
                 "failed_listings": failed_listings,
+                "failed_by_type": failed_by_type,
+                "failed_http_status_counts": failed_http_status_counts,
+                "failed_browser_error_counts": failed_browser_error_counts,
                 "resume_enabled": bool(args.resume),
                 "block_images": bool(args.block_images),
                 "interactive": bool(args.interactive),
@@ -1312,6 +1383,7 @@ def main():
                 f"epcs={len(merged.get('epc_urls', []))}"
             )
 
+        failed_by_type, failed_http_status_counts, failed_browser_error_counts = _failure_summary(failed_listings)
         metadata = {
             "generated_at": datetime.now().isoformat(),
             "source_search_json": str(search_json),
@@ -1323,6 +1395,9 @@ def main():
             "completed_count": len(completed_listing_ids),
             "failed_count": len(failed_listings),
             "failed_listings": failed_listings,
+            "failed_by_type": failed_by_type,
+            "failed_http_status_counts": failed_http_status_counts,
+            "failed_browser_error_counts": failed_browser_error_counts,
             "block_images": bool(args.block_images),
             "interactive": bool(args.interactive),
             "headless": bool(args.headless),
