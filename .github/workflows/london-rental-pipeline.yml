@@ -4,12 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       pages:
-        description: Search result pages to scrape (`0` means auto-paginate until the site stops)
+        description: Search result pages per borough/outcode area (`0` means auto-paginate until the site stops)
         type: number
         required: false
         default: 0
       max_results:
-        description: Maximum listings to keep before enrichment (`0` means no cap)
+        description: Maximum listings per borough/outcode area before enrichment (`0` means no cap)
+        type: number
+        required: false
+        default: 0
+      max_outcodes_per_borough:
+        description: Optional cap on child outcode splits for capped boroughs (`0` means use all configured outcodes)
         type: number
         required: false
         default: 0
@@ -31,12 +36,13 @@ concurrency:
 jobs:
   search:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
     outputs:
       chunk_matrix: ${{ steps.manifest.outputs.chunk_matrix }}
       chunk_count: ${{ steps.manifest.outputs.chunk_count }}
       pages: ${{ steps.params.outputs.pages }}
       max_results: ${{ steps.params.outputs.max_results }}
+      max_outcodes_per_borough: ${{ steps.params.outputs.max_outcodes_per_borough }}
       detail_chunk_size: ${{ steps.params.outputs.detail_chunk_size }}
 
     steps:
@@ -75,6 +81,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             pages="$(normalise_int "${{ inputs.pages }}" 0)"
             max_results="$(normalise_int "${{ inputs.max_results }}" 0)"
+            max_outcodes_per_borough="$(normalise_int "${{ inputs.max_outcodes_per_borough }}" 0)"
             detail_chunk_size="$(normalise_int "${{ inputs.detail_chunk_size }}" 400)"
             if [ "$detail_chunk_size" -lt 1 ]; then
               detail_chunk_size=400
@@ -82,27 +89,31 @@ jobs:
           else
             pages=0
             max_results=0
+            max_outcodes_per_borough=0
             detail_chunk_size=400
           fi
 
           echo "pages=$pages" >> "$GITHUB_OUTPUT"
           echo "max_results=$max_results" >> "$GITHUB_OUTPUT"
+          echo "max_outcodes_per_borough=$max_outcodes_per_borough" >> "$GITHUB_OUTPUT"
           echo "detail_chunk_size=$detail_chunk_size" >> "$GITHUB_OUTPUT"
-          echo "Using pages=$pages max_results=$max_results detail_chunk_size=$detail_chunk_size"
+          echo "Using pages=$pages max_results=$max_results max_outcodes_per_borough=$max_outcodes_per_borough detail_chunk_size=$detail_chunk_size"
 
-      - name: Run rental search stage
+      - name: Run adaptive rental search stage
         run: |
           mkdir -p .workflow/search
-          python Scraper/rightmove_rental_search_scraper.py \
-            --search-url "https://www.rightmove.co.uk/property-to-rent/find.html?sortType=6&areaSizeUnit=sqft&channel=RENT&index=0&locationIdentifier=REGION%5E87490&transactionType=LETTING&displayLocationIdentifier=undefined&radius=10.0" \
+          max_outcodes_args=()
+          if [ "${{ steps.params.outputs.max_outcodes_per_borough }}" -gt 0 ]; then
+            max_outcodes_args+=(--max-outcodes-per-borough "${{ steps.params.outputs.max_outcodes_per_borough }}")
+          fi
+          python Scraper/run_adaptive_london_rental_search.py \
             --pages "${{ steps.params.outputs.pages }}" \
-            --page-size 24 \
             --max-results "${{ steps.params.outputs.max_results }}" \
-            --wait-seconds 2.5 \
             --output-dir .workflow/search/output \
-            --no-interactive \
             --headless \
-            --user-data-dir .workflow/search/browser_profile
+            --run-dir .workflow/search/run \
+            --user-data-dir .workflow/search/browser_profile \
+            "${max_outcodes_args[@]}"
 
       - name: Prepare search artifact and chunk manifest
         id: manifest
@@ -113,6 +124,9 @@ jobs:
           search_csv="$(ls -t .workflow/search/output/rightmove_rental_search_results_*.csv | head -n1)"
           cp "$search_json" .workflow/dispatch/search_bundle/search_results.json
           cp "$search_csv" .workflow/dispatch/search_bundle/search_results.csv
+          if [ -f .workflow/search/run/adaptive_london_search_report.json ]; then
+            cp .workflow/search/run/adaptive_london_search_report.json .workflow/dispatch/search_bundle/adaptive_london_search_report.json
+          fi
           python Scraper/build_rental_detail_chunk_manifest.py \
             --search-results-json .workflow/dispatch/search_bundle/search_results.json \
             --chunk-size "${{ steps.params.outputs.detail_chunk_size }}" \
