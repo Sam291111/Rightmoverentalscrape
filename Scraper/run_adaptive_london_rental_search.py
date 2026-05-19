@@ -104,6 +104,37 @@ def _load_hierarchy(boroughs_path, wards_path, seed_boroughs=None):
     return boroughs, children
 
 
+def _borough_query_variants(borough_name):
+    return [
+        f"{borough_name} (London Borough)",
+        f"{borough_name}, London",
+        borough_name,
+        f"London Borough of {borough_name}",
+    ]
+
+
+def _ward_query_variants(ward_query):
+    variants = [ward_query]
+    if ", " in ward_query:
+        ward_name, borough_name = ward_query.split(", ", 1)
+        variants.extend(
+            [
+                f"{ward_name}, {borough_name}, London",
+                f"{ward_name} ({borough_name})",
+                f"{ward_name}, London",
+            ]
+        )
+    deduped = []
+    seen = set()
+    for item in variants:
+        key = item.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
 def _latest_search_json(directory):
     candidates = sorted(
         Path(directory).glob("rightmove_rental_search_results_*.json"),
@@ -207,12 +238,17 @@ def main():
         if query in resolution_cache:
             return resolution_cache[query]
         nonlocal driver
+        if query in ward_children:
+            variants = _borough_query_variants(query)
+        else:
+            variants = _ward_query_variants(query)
         driver, resolved = resolve_location(
             driver,
             query,
             headless=args.headless,
             user_data_dir=args.user_data_dir,
             interactive=args.interactive,
+            query_variants=variants,
         )
         resolution_cache[query] = resolved
         return resolved

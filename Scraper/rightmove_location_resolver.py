@@ -99,6 +99,25 @@ def _build_direct_resolution_url(query, radius=0.0):
     return f"{RIGHTMOVE_RENT_FIND}?{urlencode(params)}"
 
 
+def _candidate_queries(query):
+    base = _normalise_space(query)
+    candidates = [base]
+    if "london borough" not in base.lower():
+        candidates.append(f"{base} (London Borough)")
+        candidates.append(f"London Borough of {base}")
+    if "london" not in base.lower():
+        candidates.append(f"{base}, London")
+    deduped = []
+    seen = set()
+    for item in candidates:
+        key = item.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
 def _extract_resolution(current_url, page_source, query):
     parsed = urlparse(current_url or "")
     query_params = parse_qs(parsed.query)
@@ -207,28 +226,47 @@ def _click_to_rent(driver):
     return False
 
 
-def resolve_location(driver, query, *, headless=False, user_data_dir=None, interactive=False, radius=0.0, timeout=20):
-    direct_url = _build_direct_resolution_url(query, radius=radius)
-    driver.get(direct_url)
-    resolved = _wait_for_resolution(driver, query, timeout=timeout)
-    if resolved["ok"]:
-        resolved["resolution_method"] = "direct_url"
-        return driver, resolved
+def resolve_location(driver, query, *, headless=False, user_data_dir=None, interactive=False, radius=0.0, timeout=20, query_variants=None):
+    attempted = []
+    variants = query_variants or _candidate_queries(query)
 
-    driver.get(RIGHTMOVE_RENT_HOME)
-    if interactive:
-        prompt_manual_ready()
-    search_input = _best_input(driver)
-    search_input.clear()
-    search_input.send_keys(query)
-    time.sleep(1.5)
-    clicked_suggestion = _try_click_suggestion(driver, query)
-    if not clicked_suggestion:
-        search_input.send_keys(Keys.ENTER)
-    if "property-to-rent.html" in (driver.current_url or ""):
-        _click_to_rent(driver)
-    resolved = _wait_for_resolution(driver, query, timeout=timeout)
-    resolved["resolution_method"] = "ui_search"
+    for variant in variants:
+        direct_url = _build_direct_resolution_url(variant, radius=radius)
+        driver.get(direct_url)
+        resolved = _wait_for_resolution(driver, variant, timeout=timeout)
+        resolved["requested_query"] = query
+        resolved["attempted_query"] = variant
+        attempted.append({"method": "direct_url", "query": variant, "search_url": resolved.get("search_url")})
+        if resolved["ok"]:
+            resolved["resolution_method"] = "direct_url"
+            resolved["attempted_queries"] = attempted
+            return driver, resolved
+
+    for variant in variants:
+        driver.get(RIGHTMOVE_RENT_HOME)
+        if interactive:
+            prompt_manual_ready()
+        search_input = _best_input(driver)
+        search_input.clear()
+        search_input.send_keys(variant)
+        time.sleep(1.5)
+        clicked_suggestion = _try_click_suggestion(driver, variant)
+        if not clicked_suggestion:
+            search_input.send_keys(Keys.ENTER)
+        if "property-to-rent.html" in (driver.current_url or ""):
+            _click_to_rent(driver)
+        resolved = _wait_for_resolution(driver, variant, timeout=timeout)
+        resolved["requested_query"] = query
+        resolved["attempted_query"] = variant
+        attempted.append({"method": "ui_search", "query": variant, "search_url": resolved.get("search_url")})
+        if resolved["ok"]:
+            resolved["resolution_method"] = "ui_search"
+            resolved["attempted_queries"] = attempted
+            return driver, resolved
+
+    resolved["requested_query"] = query
+    resolved["attempted_query"] = attempted[-1]["query"] if attempted else query
+    resolved["attempted_queries"] = attempted
     return driver, resolved
 
 
@@ -246,6 +284,7 @@ __all__ = [
     "setup_browser",
     "prompt_manual_ready",
     "_build_direct_resolution_url",
+    "_candidate_queries",
     "_extract_resolution",
     "_slugify",
 ]
