@@ -8,12 +8,13 @@ This project now includes a GitHub Actions workflow at:
 
 Each run:
 
-1. installs Python dependencies from `Scraper/requirements.txt`
-2. installs Chrome on the runner
-3. runs `python Scraper/run_london_rental_pipeline.py`
-4. uploads `Scraper/output` as a workflow artifact
-5. rebuilds the GitHub Pages dashboard data in `docs/data`
-6. commits changed output and dashboard files back to the repository
+1. runs the rental search stage once
+2. builds a chunk manifest from the search results
+3. fans out the detail enrichment stage across multiple chunk jobs
+4. merges the partial enriched outputs back together
+5. cleans, clips, and rebuilds London history outputs
+6. rebuilds the GitHub Pages dashboard data in `docs/data`
+7. commits changed output and dashboard files back to the repository
 
 ## Triggers
 
@@ -22,18 +23,20 @@ The workflow supports:
 - manual runs via `workflow_dispatch`
 - scheduled runs twice a week
 
-Manual runs default to a small test size:
+Manual runs now default to auto-pagination and uncapped search-stage collection:
 
-- `pages=2`
-- `max_results=40`
+- `pages=0`
+- `max_results=0`
+- `detail_chunk_size=400`
 
-Scheduled runs default to a fuller scrape:
+Scheduled runs use the same defaults:
 
-- `pages=12`
-- `max_results=250`
+- `pages=0`
+- `max_results=0`
+- `detail_chunk_size=400`
 
-That is deliberate: for hosted automation, a stable medium-sized recurring run is
-usually more valuable than an ambitious run that fails often.
+In this workflow, `0` means "let the scraper keep going until the site naturally
+stops returning new result pages."
 
 ## Important Limitation
 
@@ -44,9 +47,10 @@ The main risk is anti-bot / session friction.
 
 So:
 
-- GitHub Actions is good for testing and may work well enough
+- GitHub Actions is now more resilient because long detail runs are chunked
+- GitHub-hosted runners still have a `6 hour` job execution limit
 - a self-hosted runner is still the more reliable long-term option if
-  GitHub-hosted runs become flaky
+  GitHub-hosted runs become flaky or too slow
 
 ## Outputs You Will See
 

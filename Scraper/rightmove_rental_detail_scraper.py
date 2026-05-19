@@ -132,6 +132,17 @@ def parse_args():
     )
     parser.add_argument("--limit", type=int, help="Optional limit for test runs.")
     parser.add_argument(
+        "--start-index",
+        type=int,
+        default=0,
+        help="Zero-based inclusive start index within the search results dataset.",
+    )
+    parser.add_argument(
+        "--end-index",
+        type=int,
+        help="Zero-based exclusive end index within the search results dataset.",
+    )
+    parser.add_argument(
         "--wait-seconds",
         type=float,
         default=0.75,
@@ -372,7 +383,7 @@ def _latest_search_results_json():
     return candidates[0] if candidates else None
 
 
-def load_search_results(path_arg, limit=None):
+def load_search_results(path_arg, limit=None, start_index=0, end_index=None):
     search_json = Path(path_arg) if path_arg else _latest_search_results_json()
     if not search_json or not search_json.exists():
         raise FileNotFoundError(
@@ -380,10 +391,18 @@ def load_search_results(path_arg, limit=None):
         )
 
     data = json.loads(search_json.read_text())
-    results = data.get("results", [])
+    all_results = data.get("results", [])
+    start_index = max(0, start_index or 0)
+    if end_index is not None and end_index < start_index:
+        raise ValueError("--end-index must be greater than or equal to --start-index.")
+    results = all_results[start_index:end_index]
     if limit:
         results = results[:limit]
-    return search_json, results
+    return search_json, results, {
+        "total_results": len(all_results),
+        "start_index": start_index,
+        "end_index": start_index + len(results),
+    }
 
 
 def wait_for_page(driver, timeout=12):
@@ -1053,7 +1072,12 @@ def save_outputs(output_dir, enriched_results, raw_path, metadata):
 
 def main():
     args = parse_args()
-    search_json, search_results = load_search_results(args.search_results_json, args.limit)
+    search_json, search_results, slice_meta = load_search_results(
+        args.search_results_json,
+        args.limit,
+        start_index=args.start_index,
+        end_index=args.end_index,
+    )
     run_dir = _resolve_run_dir(args.output_dir, args.run_dir, args.resume)
     if not args.resume and _progress_file(run_dir).exists():
         raise RuntimeError(
@@ -1078,10 +1102,24 @@ def main():
             raise RuntimeError(
                 f"Resume run was created from a different search dataset: {resume_source}"
             )
+        resume_slice_start = progress.get("meta", {}).get("slice_start_index")
+        resume_slice_end = progress.get("meta", {}).get("slice_end_index")
+        if args.resume and resume_slice_start is not None and resume_slice_start != slice_meta["start_index"]:
+            raise RuntimeError(
+                f"Resume run was created for a different slice start: {resume_slice_start}"
+            )
+        if args.resume and resume_slice_end is not None and resume_slice_end != slice_meta["end_index"]:
+            raise RuntimeError(
+                f"Resume run was created for a different slice end: {resume_slice_end}"
+            )
 
         print(f"Rental detail run directory: {run_dir}")
         if completed_listing_ids:
             print(f"Resuming with {len(completed_listing_ids)} listings already completed.")
+        print(
+            f"Rental detail slice: start={slice_meta['start_index']} "
+            f"end={slice_meta['end_index']} of {slice_meta['total_results']}"
+        )
         print(
             f"Rental detail speed settings: block_images={args.block_images} "
             f"page_timeout={args.page_timeout}s settle={args.wait_seconds}s"
@@ -1145,6 +1183,9 @@ def main():
                 "generated_at": datetime.now().isoformat(),
                 "source_search_json": str(search_json),
                 "run_dir": str(run_dir),
+                "slice_start_index": slice_meta["start_index"],
+                "slice_end_index": slice_meta["end_index"],
+                "source_total_results": slice_meta["total_results"],
                 "results_count": len(enriched_results),
                 "completed_count": len(completed_listing_ids),
                 "resume_enabled": bool(args.resume),
@@ -1167,6 +1208,9 @@ def main():
             "generated_at": datetime.now().isoformat(),
             "source_search_json": str(search_json),
             "run_dir": str(run_dir),
+            "slice_start_index": slice_meta["start_index"],
+            "slice_end_index": slice_meta["end_index"],
+            "source_total_results": slice_meta["total_results"],
             "results_count": len(enriched_results),
             "completed_count": len(completed_listing_ids),
             "block_images": bool(args.block_images),
