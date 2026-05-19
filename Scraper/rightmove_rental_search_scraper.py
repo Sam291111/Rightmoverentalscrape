@@ -751,6 +751,23 @@ def merge_listing_data(api_listing, dom_listing):
     return merged
 
 
+def _payload_search_meta(payload):
+    if not isinstance(payload, dict):
+        return {}
+    location = payload.get("location") or {}
+    pagination = payload.get("pagination") or {}
+    search_parameters = payload.get("searchParameters") or {}
+    return {
+        "reported_result_count": payload.get("resultCount"),
+        "reported_pagination_total": pagination.get("total"),
+        "reported_pagination_last_index": pagination.get("last"),
+        "resolved_location_identifier": search_parameters.get("locationIdentifier"),
+        "resolved_location_name": location.get("displayName"),
+        "resolved_location_type": location.get("locationType"),
+        "resolved_location_id": location.get("id"),
+    }
+
+
 def save_outputs(output_dir, merged_results, raw_pages, metadata):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = Path(output_dir)
@@ -823,6 +840,7 @@ def main():
     page_limit = args.pages if args.pages and args.pages > 0 else None
     max_results = args.max_results if args.max_results and args.max_results > 0 else None
     page_offset = 0
+    reported_search_meta = {}
 
     try:
         if args.search_url:
@@ -893,6 +911,8 @@ def main():
             payload = selected_attempt["payload"]
             api_url = selected_attempt["api_url"]
             api_listings = selected_attempt["api_listings"]
+            if not reported_search_meta:
+                reported_search_meta = _payload_search_meta(payload)
 
             raw_pages.append(
                 {
@@ -986,6 +1006,7 @@ def main():
             "headless": bool(args.headless),
             "user_data_dir": args.user_data_dir,
         }
+        metadata.update({key: value for key, value in reported_search_meta.items() if value not in (None, "")})
 
         json_path, csv_path, raw_path = save_outputs(args.output_dir, merged_results, raw_pages, metadata)
 
