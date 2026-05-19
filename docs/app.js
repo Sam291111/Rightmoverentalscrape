@@ -31,20 +31,19 @@ const state = {
 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    const [dashboardResponse, listingsResponse] = await Promise.all([
-      fetch("./data/dashboard.json", { cache: "no-store" }),
-      fetch("./data/listings.json", { cache: "no-store" }),
-    ]);
+    const dashboardResponse = await fetch("./data/dashboard.json", { cache: "no-store" });
 
     if (!dashboardResponse.ok) {
       throw new Error(`Failed to load dashboard data (${dashboardResponse.status})`);
     }
-    if (!listingsResponse.ok) {
-      throw new Error(`Failed to load listing data (${listingsResponse.status})`);
-    }
 
     state.dashboard = await dashboardResponse.json();
-    state.listings = await listingsResponse.json();
+    const listingsResponse = await fetch("./data/listings.json", { cache: "no-store" });
+    if (listingsResponse.ok) {
+      state.listings = await listingsResponse.json();
+    } else if (listingsResponse.status !== 404) {
+      throw new Error(`Failed to load listing data (${listingsResponse.status})`);
+    }
 
     initialiseTabs();
     initialiseControls();
@@ -111,23 +110,6 @@ function initialiseControls() {
   );
 
   fillSelect(
-    document.querySelector("#dataset-run-select"),
-    [{ value: "__all__", label: "All runs" }].concat(
-      state.listings.filters.runs
-        .slice()
-        .reverse()
-        .map((run) => ({ value: run.run_timestamp, label: formatRunLabel(run.run_timestamp) })),
-    ),
-    "__all__",
-  );
-  fillSelect(
-    document.querySelector("#dataset-borough-select"),
-    [{ value: "__all__", label: "All boroughs" }].concat(
-      state.listings.filters.boroughs.map((borough) => ({ value: borough, label: borough })),
-    ),
-    "__all__",
-  );
-  fillSelect(
     document.querySelector("#dataset-dimension-select"),
     Object.entries(DATASET_DIMENSIONS).map(([value, meta]) => ({ value, label: meta.label })),
     "property_type",
@@ -142,15 +124,48 @@ function initialiseControls() {
   document.querySelector("#segment-scale-select").addEventListener("change", renderSegmentExplorer);
   document.querySelector("#segment-metric-select").addEventListener("change", renderSegmentExplorer);
 
-  document.querySelector("#dataset-dimension-select").addEventListener("change", syncDatasetValuesAndRender);
-  document.querySelector("#dataset-run-select").addEventListener("change", renderDatasetTable);
-  document.querySelector("#dataset-borough-select").addEventListener("change", renderDatasetTable);
-  document.querySelector("#dataset-value-select").addEventListener("change", renderDatasetTable);
-  document.querySelector("#dataset-limit-select").addEventListener("change", renderDatasetTable);
-  document.querySelector("#dataset-download-button").addEventListener("click", downloadDatasetCsv);
+  if (state.listings) {
+    fillSelect(
+      document.querySelector("#dataset-run-select"),
+      [{ value: "__all__", label: "All runs" }].concat(
+        state.listings.filters.runs
+          .slice()
+          .reverse()
+          .map((run) => ({ value: run.run_timestamp, label: formatRunLabel(run.run_timestamp) })),
+      ),
+      "__all__",
+    );
+    fillSelect(
+      document.querySelector("#dataset-borough-select"),
+      [{ value: "__all__", label: "All boroughs" }].concat(
+        state.listings.filters.boroughs.map((borough) => ({ value: borough, label: borough })),
+      ),
+      "__all__",
+    );
+
+    document.querySelector("#dataset-dimension-select").addEventListener("change", syncDatasetValuesAndRender);
+    document.querySelector("#dataset-run-select").addEventListener("change", renderDatasetTable);
+    document.querySelector("#dataset-borough-select").addEventListener("change", renderDatasetTable);
+    document.querySelector("#dataset-value-select").addEventListener("change", renderDatasetTable);
+    document.querySelector("#dataset-limit-select").addEventListener("change", renderDatasetTable);
+    document.querySelector("#dataset-download-button").addEventListener("click", downloadDatasetCsv);
+  } else {
+    for (const selector of [
+      "#dataset-run-select",
+      "#dataset-borough-select",
+      "#dataset-dimension-select",
+      "#dataset-value-select",
+      "#dataset-limit-select",
+      "#dataset-download-button",
+    ]) {
+      document.querySelector(selector).disabled = true;
+    }
+  }
 
   syncSegmentValuesAndRender();
-  syncDatasetValuesAndRender();
+  if (state.listings) {
+    syncDatasetValuesAndRender();
+  }
 }
 
 function fillSelect(select, options, defaultValue) {
@@ -179,6 +194,9 @@ function syncSegmentValuesAndRender() {
 }
 
 function syncDatasetValuesAndRender() {
+  if (!state.listings) {
+    return;
+  }
   const dimension = document.querySelector("#dataset-dimension-select").value;
   const values = state.listings.filters.dimension_values[dimension] || [];
   const preferredValue = pickDefaultValue(dimension, values, "__all__");
@@ -406,6 +424,9 @@ function renderSegmentExplorer() {
 }
 
 function getFilteredDatasetRows() {
+  if (!state.listings) {
+    return [];
+  }
   const runValue = document.querySelector("#dataset-run-select").value;
   const boroughValue = document.querySelector("#dataset-borough-select").value;
   const dimension = document.querySelector("#dataset-dimension-select").value;
@@ -427,6 +448,18 @@ function getFilteredDatasetRows() {
 }
 
 function renderDatasetTable() {
+  if (!state.listings) {
+    document.querySelector("#dataset-summary").innerHTML = [
+      makePill("Listing-level data will appear after the first full production run."),
+      makePill("The analytics tab is already live."),
+    ].join("");
+    document.querySelector("#dataset-table-body").innerHTML = `
+      <tr>
+        <td colspan="9">No listing-level dataset has been published yet.</td>
+      </tr>
+    `;
+    return;
+  }
   const rows = getFilteredDatasetRows();
   const limit = Number(document.querySelector("#dataset-limit-select").value);
   const visibleRows = rows
@@ -486,6 +519,9 @@ function buildTagSummary(row) {
 }
 
 function downloadDatasetCsv() {
+  if (!state.listings) {
+    return;
+  }
   const rows = getFilteredDatasetRows();
   const headers = [
     "run_timestamp",
