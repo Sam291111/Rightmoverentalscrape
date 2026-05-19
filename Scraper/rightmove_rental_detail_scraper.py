@@ -157,6 +157,12 @@ def parse_args():
         help="How long to wait for a detail page to become scraper-ready.",
     )
     parser.add_argument(
+        "--listing-retries",
+        type=int,
+        default=2,
+        help="How many times to retry an individual listing if the detail page never becomes ready.",
+    )
+    parser.add_argument(
         "--block-images",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -180,6 +186,12 @@ def parse_args():
     parser.add_argument(
         "--user-data-dir",
         help="Optional Chrome user-data directory to reuse cookies/session state across automated runs.",
+    )
+    parser.add_argument(
+        "--continue-on-listing-error",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Record a failed listing and continue the chunk instead of aborting the entire run.",
     )
     return parser.parse_args()
 
@@ -1129,6 +1141,7 @@ def main():
     progress = _load_progress(run_dir) if args.resume else {"results": [], "completed_listing_ids": [], "meta": {}}
     completed_listing_ids = {str(item) for item in progress.get("completed_listing_ids", []) if item}
     enriched_results = list(progress.get("results", []))
+    failed_listings = list(progress.get("meta", {}).get("failed_listings", []))
     driver = setup_browser(
         block_images=args.block_images,
         headless=args.headless,
@@ -1164,7 +1177,7 @@ def main():
         )
         print(
             f"Rental detail speed settings: block_images={args.block_images} "
-            f"page_timeout={args.page_timeout}s settle={args.wait_seconds}s"
+            f"page_timeout={args.page_timeout}s settle={args.wait_seconds}s retries={args.listing_retries}"
         )
 
         driver = _navigate_with_recovery(
@@ -1189,19 +1202,69 @@ def main():
                 continue
 
             print(f"\n[{index}/{len(search_results)}] {listing_url}")
-            driver = _navigate_with_recovery(
-                driver,
-                listing_url,
-                block_images=args.block_images,
-                reprompt=args.interactive,
-                headless=args.headless,
-                user_data_dir=args.user_data_dir,
-            )
-            if not wait_for_page(driver, timeout=args.page_timeout):
-                raise RuntimeError(f"Page did not finish loading: {listing_url}")
-            if not wait_for_detail_content(driver, timeout=args.page_timeout):
-                raise RuntimeError(f"Property content did not appear: {listing_url}")
-            time.sleep(args.wait_seconds)
+            last_error = None
+            ready = False
+            max_attempts = max(1, args.listing_retries + 1)
+            for attempt in range(1, max_attempts + 1):
+                driver = _navigate_with_recovery(
+                    driver,
+                    listing_url,
+                    block_images=args.block_images,
+                    reprompt=args.interactive,
+                    headless=args.headless,
+                    user_data_dir=args.user_data_dir,
+                )
+                if not wait_for_page(driver, timeout=args.page_timeout):
+                    last_error = RuntimeError(f"Page did not finish loading: {listing_url}")
+                elif not wait_for_detail_content(driver, timeout=args.page_timeout):
+                    last_error = RuntimeError(f"Property content did not appear: {listing_url}")
+                else:
+                    ready = True
+                    time.sleep(args.wait_seconds)
+                    break
+                if attempt < max_attempts:
+                    print(f"  retrying listing load ({attempt}/{max_attempts - 1} retries used)")
+                    driver = _recreate_browser(
+                        driver,
+                        listing_url,
+                        reprompt=False,
+                        block_images=args.block_images,
+                        headless=args.headless,
+                        user_data_dir=args.user_data_dir,
+                    )
+
+            if not ready:
+                failure = {
+                    "listing_id": listing_id,
+                    "listing_url": listing_url,
+                    "error": str(last_error) if last_error else "Unknown listing load error",
+                }
+                failed_listings.append(failure)
+                progress_metadata = {
+                    "generated_at": datetime.now().isoformat(),
+                    "source_search_json": str(search_json),
+                    "run_dir": str(run_dir),
+                    "slice_start_index": slice_meta["start_index"],
+                    "slice_end_index": slice_meta["end_index"],
+                    "source_total_results": slice_meta["total_results"],
+                    "results_count": len(enriched_results),
+                    "completed_count": len(completed_listing_ids),
+                    "failed_count": len(failed_listings),
+                    "failed_listings": failed_listings,
+                    "resume_enabled": bool(args.resume),
+                    "block_images": bool(args.block_images),
+                    "interactive": bool(args.interactive),
+                    "headless": bool(args.headless),
+                    "user_data_dir": args.user_data_dir,
+                    "page_timeout": args.page_timeout,
+                    "settle_seconds": args.wait_seconds,
+                    "listing_retries": args.listing_retries,
+                }
+                _write_progress(run_dir, enriched_results, completed_listing_ids, progress_metadata)
+                if args.continue_on_listing_error:
+                    print(f"  skipping failed listing after retries: {failure['error']}")
+                    continue
+                raise last_error if last_error else RuntimeError(f"Failed to load listing: {listing_url}")
 
             snapshot = _scrape_detail_snapshot(driver)
             source_patterns = _scan_page_source(driver)
@@ -1230,6 +1293,8 @@ def main():
                 "source_total_results": slice_meta["total_results"],
                 "results_count": len(enriched_results),
                 "completed_count": len(completed_listing_ids),
+                "failed_count": len(failed_listings),
+                "failed_listings": failed_listings,
                 "resume_enabled": bool(args.resume),
                 "block_images": bool(args.block_images),
                 "interactive": bool(args.interactive),
@@ -1237,6 +1302,7 @@ def main():
                 "user_data_dir": args.user_data_dir,
                 "page_timeout": args.page_timeout,
                 "settle_seconds": args.wait_seconds,
+                "listing_retries": args.listing_retries,
             }
             _write_progress(run_dir, enriched_results, completed_listing_ids, progress_metadata)
 
@@ -1255,12 +1321,15 @@ def main():
             "source_total_results": slice_meta["total_results"],
             "results_count": len(enriched_results),
             "completed_count": len(completed_listing_ids),
+            "failed_count": len(failed_listings),
+            "failed_listings": failed_listings,
             "block_images": bool(args.block_images),
             "interactive": bool(args.interactive),
             "headless": bool(args.headless),
             "user_data_dir": args.user_data_dir,
             "page_timeout": args.page_timeout,
             "settle_seconds": args.wait_seconds,
+            "listing_retries": args.listing_retries,
         }
         _write_progress(run_dir, enriched_results, completed_listing_ids, metadata)
         json_path, csv_path, raw_path = save_outputs(
