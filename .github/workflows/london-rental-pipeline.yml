@@ -376,6 +376,11 @@ jobs:
             --boroughs-path "London Boundary/statistical-gis-boundaries-london/ESRI/London_Borough_Excluding_MHW.shp" \
             --output-dir Scraper/output
 
+      - name: Organise output directory
+        run: |
+          python Scraper/organise_london_rental_outputs.py \
+            --output-dir Scraper/output
+
       - name: Rebuild history and dashboard data
         run: |
           python Scraper/build_london_rental_history.py \

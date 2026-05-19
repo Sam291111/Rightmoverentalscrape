@@ -53,6 +53,28 @@ def _resolve_path(path_arg):
     return path
 
 
+def _find_run_files(input_dir):
+    input_dir = Path(input_dir)
+    candidates = []
+    seen = set()
+
+    for path in sorted(input_dir.glob("rightmove_cleaned_dataset_*_london_clipped_*.json")):
+        resolved = path.resolve()
+        if resolved not in seen:
+            seen.add(resolved)
+            candidates.append(path)
+
+    archive_dir = input_dir / "archives" / "clipped"
+    if archive_dir.exists():
+        for path in sorted(archive_dir.glob("rightmove_cleaned_dataset_*_london_clipped_*.json")):
+            resolved = path.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                candidates.append(path)
+
+    return candidates
+
+
 def _parse_run_file(path):
     match = RUN_FILE_RE.match(path.name)
     if not match:
@@ -451,7 +473,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     pages_data_dir.mkdir(parents=True, exist_ok=True)
 
-    run_files = sorted(input_dir.glob("rightmove_cleaned_dataset_*_london_clipped_*.json"))
+    run_files = _find_run_files(input_dir)
     all_rows = []
     for run_file in run_files:
         all_rows.extend(_load_run_rows(run_file))
