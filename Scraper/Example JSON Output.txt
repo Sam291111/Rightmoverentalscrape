@@ -1,0 +1,70 @@
+    {
+      "listing_id": "87706437",
+      "listing_url": "https://www.rightmove.co.uk/properties/87706437",
+      "price_amount": 575000,
+      "price_text": "£600,000",
+      "location": "Endsleigh Gardens, Ilford, London, IG1",
+      "bedrooms": 4,
+      "bathrooms": 2,
+      "summary": "A spacious four-bedroom period home offering excellent proportions, a flexible layout, and significant scope for modernisation and value enhancement. Arranged over two floors, the property features two generous reception rooms, a large kitchen/diner with direct access to the garden, and four well-proportioned bedrooms. The layout lends itself well to reconfiguration, including the potential to create a kitchen extension or open-plan living space (STPP). Upstairs comprises four bedrooms and a family bathroom, with further potential to extend into the loft subject to the usual permissions. To the rear, the property benefits from a private garden extending approximately 10.88m, offering a great outdoor space that could be transformed into a landscaped family garden. Requiring refurbishment throughout, this is an ideal opportunity for buyers looking to add value and design a home to their own specification. A rare chance to acquire a property of this size and potential in a well-established residential location. Read full description COUNCIL TAX Ask agent PARKING Residents GARDEN Front garden, Private garden ACCESSIBILITY Lateral living Energy Performance Certificate Utilities, rights & restrictions Endsleigh Gardens, Ilford, London, IG1 Approximate location Open map Street View My places Stations Schools Add an important place to see how long it'd take to get there from our property listings. __mins driving to your place Check how much you can borrow Get an instant, personalised result: Show sellers you’re serious Secure viewings faster with agents No impact on your credit score Get a Mortgage in Principle Powered by Renovation potential Broadband speed Property sale history Recently sold & under offer See similar nearby properties",
+      "latitude": 51.56363,
+      "longitude": 0.05849,
+      "image_count": 11,
+      "source_page_index": 0,
+      "source": "api",
+      "property_type": "Terraced",
+      "image_url": "https://media.rightmove.co.uk/property-photo/3e1ee6272/87706437/3e1ee627257fa287d46430a6d2c63633.jpeg",
+      "image_urls": [
+        "https://media.rightmove.co.uk/property-photo/3e1ee6272/87706437/3e1ee627257fa287d46430a6d2c63633.jpeg",
+        "https://media.rightmove.co.uk/property-photo/3c51aff08/87706437/3c51aff085373a46d7eed091614b699f.jpeg",
+        "https://media.rightmove.co.uk/property-photo/a4ccd1788/87706437/a4ccd1788a90f4e26864c5b35dbb5b57.jpeg",
+        "https://media.rightmove.co.uk/property-photo/a02f8b9f4/87706437/a02f8b9f4170befbf752907c3eddd84e.jpeg",
+        "https://media.rightmove.co.uk/property-photo/116446500/87706437/116446500a156e98cd1e396eecaaa7c3.jpeg",
+        "https://media.rightmove.co.uk/property-photo/f5eaee1df/87706437/f5eaee1dfc0fc4394488794f98edb1b6.jpeg",
+        "https://media.rightmove.co.uk/property-photo/d5c4c2a3b/87706437/d5c4c2a3be53d6e8841cbb700a696909.jpeg",
+        "https://media.rightmove.co.uk/property-photo/e95b7ce25/87706437/e95b7ce2538cb4897982368c7f6c0e39.jpeg",
+        "https://media.rightmove.co.uk/property-photo/be8d163e3/87706437/be8d163e3c5bfcbb55a7e2d6ea82d83a.jpeg",
+        "https://media.rightmove.co.uk/property-photo/9807a4d97/87706437/9807a4d978dc8e7f66f408f092f75d6f.jpeg",
+        "https://media.rightmove.co.uk/property-photo/534bf87f3/87706437/534bf87f37141bf8d297bfed58b79049.jpeg"
+      ],
+      "featured": false,
+      "position_on_page": 2,
+      "postcode": null,
+      "search_summary": "We are pleased to present this well-proportioned three-bedroom terraced property, ideally positioned in a popular residential area of Ilford, just a short distance from Redbridge Underground Station, providing excellent access into Central London.",
+      "search_image_urls": [
+        "https://media.rightmove.co.uk/dir/crop/10:9-16:9/property-photo/3e1ee6272/87706437/3e1ee627257fa287d46430a6d2c63633_max_476x317.jpeg",
+        "https://media.rightmove.co.uk/dir/crop/10:9-16:9/property-photo/3c51aff08/87706437/3c51aff085373a46d7eed091614b699f_max_476x317.jpeg",
+        "https://media.rightmove.co.uk/dir/crop/10:9-16:9/property-photo/a02f8b9f4/87706437/a02f8b9f4170befbf752907c3eddd84e_max_476x317.jpeg",
+        "https://media.rightmove.co.uk/dir/crop/10:9-16:9/property-photo/116446500/87706437/116446500a156e98cd1e396eecaaa7c3_max_476x317.jpeg",
+        "https://media.rightmove.co.uk/dir/crop/10:9-16:9/property-photo/a4ccd1788/87706437/a4ccd1788a90f4e26864c5b35dbb5b57_max_476x317.jpeg"
+      ],
+      "search_location": "Endsleigh Gardens, Ilford, London, IG1",
+      "search_postcode": null,
+      "detail_title": "Endsleigh Gardens, Ilford, London, IG1",
+      "detail_price_text": "£600,000",
+      "added_text": "Added today",
+      "description": "A spacious four-bedroom period home offering excellent proportions, a flexible layout, and significant scope for modernisation and value enhancement. Arranged over two floors, the property features two generous reception rooms, a large kitchen/diner with direct access to the garden, and four well-proportioned bedrooms. The layout lends itself well to reconfiguration, including the potential to create a kitchen extension or open-plan living space (STPP). Upstairs comprises four bedrooms and a family bathroom, with further potential to extend into the loft subject to the usual permissions. To the rear, the property benefits from a private garden extending approximately 10.88m, offering a great outdoor space that could be transformed into a landscaped family garden. Requiring refurbishment throughout, this is an ideal opportunity for buyers looking to add value and design a home to their own specification. A rare chance to acquire a property of this size and potential in a well-established residential location. Read full description COUNCIL TAX Ask agent PARKING Residents GARDEN Front garden, Private garden ACCESSIBILITY Lateral living Energy Performance Certificate Utilities, rights & restrictions Endsleigh Gardens, Ilford, London, IG1 Approximate location Open map Street View My places Stations Schools Add an important place to see how long it'd take to get there from our property listings. __mins driving to your place Check how much you can borrow Get an instant, personalised result: Show sellers you’re serious Secure viewings faster with agents No impact on your credit score Get a Mortgage in Principle Powered by Renovation potential Broadband speed Property sale history Recently sold & under offer See similar nearby properties",
+      "key_features_text": "Chain Free2 Reception Rooms2 BathroomsExcellent Scope for Modernisation, Extension and Loft Conversion (STPP)Council Tax Band: CEPC Rating: D & CDouble GlazingGas Central HeatingCurrently Arranged as 2 Flats",
+      "display_address": "Endsleigh Gardens, Ilford, London, IG1",
+      "tenure": "Freehold",
+      "property_photo_urls": [
+        "https://media.rightmove.co.uk/property-photo/3e1ee6272/87706437/3e1ee627257fa287d46430a6d2c63633.jpeg",
+        "https://media.rightmove.co.uk/property-photo/3c51aff08/87706437/3c51aff085373a46d7eed091614b699f.jpeg",
+        "https://media.rightmove.co.uk/property-photo/a4ccd1788/87706437/a4ccd1788a90f4e26864c5b35dbb5b57.jpeg",
+        "https://media.rightmove.co.uk/property-photo/a02f8b9f4/87706437/a02f8b9f4170befbf752907c3eddd84e.jpeg",
+        "https://media.rightmove.co.uk/property-photo/116446500/87706437/116446500a156e98cd1e396eecaaa7c3.jpeg",
+        "https://media.rightmove.co.uk/property-photo/f5eaee1df/87706437/f5eaee1dfc0fc4394488794f98edb1b6.jpeg",
+        "https://media.rightmove.co.uk/property-photo/d5c4c2a3b/87706437/d5c4c2a3be53d6e8841cbb700a696909.jpeg",
+        "https://media.rightmove.co.uk/property-photo/e95b7ce25/87706437/e95b7ce2538cb4897982368c7f6c0e39.jpeg",
+        "https://media.rightmove.co.uk/property-photo/be8d163e3/87706437/be8d163e3c5bfcbb55a7e2d6ea82d83a.jpeg",
+        "https://media.rightmove.co.uk/property-photo/9807a4d97/87706437/9807a4d978dc8e7f66f408f092f75d6f.jpeg",
+        "https://media.rightmove.co.uk/property-photo/534bf87f3/87706437/534bf87f37141bf8d297bfed58b79049.jpeg"
+      ],
+      "property_photo_count": 11,
+      "floorplan_urls": [
+        "https://media.rightmove.co.uk/property-floorplan/0d5e5c581/87706437/0d5e5c58155d2c2f9530d73cc8c25edc.jpeg"
+      ],
+      "epc_urls": [
+        "https://media.rightmove.co.uk/property-epc/07a3d5022/87706437/07a3d5022dc24b9ae50ba75a3715d91f.jpeg"
+      ]
+    }

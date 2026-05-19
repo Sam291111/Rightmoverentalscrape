@@ -1,0 +1,627 @@
+"""
+Rightmove Search Scraper
+========================
+
+Semi-automated search-stage scraper for Rightmove.
+
+What it does:
+  - Opens a real browser session so you can handle cookies/CAPTCHA yourself
+  - Pulls the same first-party search API used by the search page
+  - Supplements the API data with DOM-only card fields such as image URLs
+  - Saves game-friendly JSON + CSV outputs
+  - Saves raw API responses per page for later reverse engineering
+
+Example:
+  python3 Scraper/rightmove_search_scraper.py \
+    --search-url "https://www.rightmove.co.uk/property-for-sale/find.html?searchLocation=London&useLocationIdentifier=true&locationIdentifier=REGION%5E87490&radius=5.0&_includeSSTC=on&sortType=6&channel=BUY&transactionType=BUY&displayLocationIdentifier=London-87490.html" \
+    --pages 3
+"""
+
+import argparse
+import csv
+import json
+import os
+import re
+import time
+from datetime import datetime
+from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+import undetected_chromedriver as uc
+
+
+CARD_SELECTOR = "div[class*='PropertyCard_propertyCardContainer__']"
+API_PATH = "/api/property-search/listing/search"
+IMAGE_URL_RE = re.compile(r"https://media\.rightmove\.co\.uk/[^\s\"'>]*property-photo[^\s\"'>]+", re.IGNORECASE)
+POSTCODE_RE = re.compile(
+    r"(?i)\b(?:GIR\s?0AA|(?:[A-PR-UWYZ][A-HK-Y]?\d[A-HJKPSTUW]?|"
+    r"[A-PR-UWYZ][A-HK-Y]?\d{2}|[A-PR-UWYZ][A-HK-Y]?\d[ABEHMNPRVWXY])"
+    r"\s?\d[ABD-HJLNP-UW-Z]{2})\b"
+)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Scrape Rightmove search results into JSON/CSV.")
+    parser.add_argument(
+        "--search-url",
+        help="Rightmove search results URL. If omitted, the browser opens blank and you can navigate manually.",
+    )
+    parser.add_argument(
+        "--pages",
+        type=int,
+        default=1,
+        help="How many pages to scrape, starting from the current page or supplied search URL.",
+    )
+    parser.add_argument(
+        "--page-size",
+        type=int,
+        default=24,
+        help="Search pagination step. Recon suggests 24 for current Rightmove results.",
+    )
+    parser.add_argument(
+        "--max-results",
+        type=int,
+        help="Optional cap on the total number of merged listings to keep.",
+    )
+    parser.add_argument(
+        "--wait-seconds",
+        type=float,
+        default=2.5,
+        help="Delay after each page load before scraping/fetching.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="Scraper/output",
+        help="Directory for JSON, CSV, and raw API page dumps.",
+    )
+    return parser.parse_args()
+
+
+def setup_browser():
+    options = uc.ChromeOptions()
+    options.add_argument("--start-maximized")
+    driver = uc.Chrome(options=options, version_main=None)
+    return driver
+
+
+def prompt_manual_ready():
+    input(
+        "\nHandle cookies / CAPTCHA / login in the browser if needed, "
+        "then press Enter here to start scraping..."
+    )
+
+
+def _normalise_space(value):
+    return re.sub(r"\s+", " ", (value or "")).strip()
+
+
+def _canonical_listing_url(url):
+    if not url:
+        return None
+    if url.startswith("/"):
+        url = f"https://www.rightmove.co.uk{url}"
+    return url.split("#", 1)[0]
+
+
+def _extract_clean_price_text(value):
+    text = _normalise_space(value)
+    if not text:
+        return None
+    price_match = re.search(r"£\s*[\d,]+", text)
+    if not price_match:
+        return text
+    qualifier = None
+    for candidate in ("Guide Price", "Offers in Excess of", "Offers Over", "Fixed Price", "From"):
+        if candidate.lower() in text.lower():
+            qualifier = candidate
+            break
+    return f"{price_match.group(0)} {qualifier}".strip() if qualifier else price_match.group(0)
+
+
+def _extract_property_id(value):
+    if value is None:
+        return None
+    match = re.search(r"/properties/(\d{6,})", str(value)) or re.search(r"\b(\d{6,})\b", str(value))
+    return match.group(1) if match else None
+
+
+def _normalise_postcode(value):
+    if not value:
+        return None
+    cleaned = _normalise_space(value).upper().replace(" ", "")
+    if len(cleaned) <= 3:
+        return cleaned
+    return f"{cleaned[:-3]} {cleaned[-3:]}"
+
+
+def _first_valid_postcode(*values):
+    for value in values:
+        if not value:
+            continue
+        match = POSTCODE_RE.search(str(value))
+        if match:
+            return _normalise_postcode(match.group(0))
+    return None
+
+
+def _first_scalar_for_keys(node, keys):
+    if isinstance(node, dict):
+        for key in keys:
+            value = node.get(key)
+            if isinstance(value, (str, int, float, bool)) and value not in ("", None):
+                return value
+        for value in node.values():
+            found = _first_scalar_for_keys(value, keys)
+            if found not in (None, ""):
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = _first_scalar_for_keys(item, keys)
+            if found not in (None, ""):
+                return found
+    return None
+
+
+def _collect_matching_strings(node, predicate, results=None):
+    if results is None:
+        results = []
+    if isinstance(node, dict):
+        for value in node.values():
+            _collect_matching_strings(value, predicate, results)
+    elif isinstance(node, list):
+        for item in node:
+            _collect_matching_strings(item, predicate, results)
+    elif isinstance(node, str):
+        if predicate(node):
+            results.append(node)
+    return results
+
+
+def _listing_score(node):
+    if not isinstance(node, dict):
+        return 0
+    score = 0
+    if any(key in node for key in ("id", "propertyId")):
+        score += 2
+    if any(key in node for key in ("displayAddress", "address")):
+        score += 2
+    if "price" in node or "displayPrice" in node:
+        score += 1
+    if any(key in node for key in ("latitude", "longitude", "location")):
+        score += 1
+    if any(key in node for key in ("propertyUrl", "propertyImages", "images", "imageUrl")):
+        score += 1
+    return score
+
+
+def _find_listing_dicts(payload):
+    candidates = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            if _listing_score(node) >= 4:
+                candidates.append(node)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(payload)
+
+    seen = set()
+    deduped = []
+    for candidate in candidates:
+        listing_id = _extract_property_id(candidate.get("id") or candidate.get("propertyId"))
+        address = candidate.get("displayAddress") or candidate.get("address")
+        signature = (listing_id, _normalise_space(str(address)))
+        if signature in seen:
+            continue
+        seen.add(signature)
+        deduped.append(candidate)
+    return deduped
+
+
+def _extract_price_amount(node):
+    if isinstance(node, dict):
+        price = node.get("price")
+        if isinstance(price, dict):
+            amount = price.get("amount")
+            if isinstance(amount, (int, float)):
+                return int(amount)
+        if isinstance(node.get("price"), (int, float)):
+            return int(node["price"])
+    found = _first_scalar_for_keys(node, ("amount", "priceAmount"))
+    if isinstance(found, (int, float)):
+        return int(found)
+    if isinstance(found, str) and found.isdigit():
+        return int(found)
+    return None
+
+
+def _extract_lat_lng(node):
+    lat = _first_scalar_for_keys(node, ("latitude", "lat"))
+    lng = _first_scalar_for_keys(node, ("longitude", "lng", "lon"))
+    try:
+        lat = float(lat) if lat is not None else None
+    except (TypeError, ValueError):
+        lat = None
+    try:
+        lng = float(lng) if lng is not None else None
+    except (TypeError, ValueError):
+        lng = None
+    return lat, lng
+
+
+def _extract_image_urls(node):
+    urls = _collect_matching_strings(node, lambda value: bool(IMAGE_URL_RE.search(value)))
+    clean = []
+    seen = set()
+    for url in urls:
+        if url not in seen:
+            seen.add(url)
+            clean.append(url)
+    return clean
+
+
+def _extract_listing_from_api(node, page_index):
+    listing_id = _extract_property_id(node.get("id") or node.get("propertyId"))
+    property_url = _canonical_listing_url(
+        _first_scalar_for_keys(node, ("propertyUrl", "url", "detailUrl", "propertyLink"))
+    )
+    if not listing_id:
+        listing_id = _extract_property_id(property_url)
+
+    lat, lng = _extract_lat_lng(node)
+    image_urls = _extract_image_urls(node)
+    address = _first_scalar_for_keys(node, ("displayAddress", "address", "streetAddress"))
+    summary = _first_scalar_for_keys(node, ("summary", "description", "propertyDescription"))
+    property_type = _first_scalar_for_keys(node, ("propertyType", "displayPropertyType", "type"))
+    bedrooms = _first_scalar_for_keys(node, ("bedrooms", "numberOfBedrooms", "bedroomCount"))
+    bathrooms = _first_scalar_for_keys(node, ("bathrooms", "numberOfBathrooms", "bathroomCount"))
+    image_count = _first_scalar_for_keys(node, ("numberOfImages", "imageCount", "imagesCount"))
+    display_price = _first_scalar_for_keys(node, ("displayPrice", "formattedPrice"))
+    price_amount = _extract_price_amount(node)
+    postcode = _first_valid_postcode(address, summary)
+
+    return {
+        "listing_id": listing_id,
+        "listing_url": property_url,
+        "price_amount": price_amount,
+        "price_text": _extract_clean_price_text(display_price) if display_price else None,
+        "location": _normalise_space(str(address)) if address else None,
+        "postcode": postcode,
+        "property_type": _normalise_space(str(property_type)) if property_type else None,
+        "bedrooms": _to_int_or_none(bedrooms),
+        "bathrooms": _to_int_or_none(bathrooms),
+        "summary": _normalise_space(str(summary)) if summary else None,
+        "latitude": lat,
+        "longitude": lng,
+        "image_url": image_urls[0] if image_urls else None,
+        "image_urls": image_urls,
+        "image_count": _to_int_or_none(image_count),
+        "source_page_index": page_index,
+        "source": "api",
+    }
+
+
+def _to_int_or_none(value):
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_page_url(base_url, page_index, keep_zero_index):
+    parsed = urlparse(base_url)
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    if page_index == 0 and not keep_zero_index:
+        query.pop("index", None)
+    else:
+        query["index"] = [str(page_index)]
+    new_query = urlencode(query, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
+
+
+def _build_api_url(page_url):
+    parsed = urlparse(page_url)
+    return urlunparse(parsed._replace(path=API_PATH))
+
+
+def wait_for_cards(driver, timeout=20):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        count = driver.execute_script(
+            "return document.querySelectorAll(arguments[0]).length;",
+            CARD_SELECTOR,
+        )
+        if count and count > 0:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def fetch_api_payload(driver, api_url):
+    script = """
+const url = arguments[0];
+const done = arguments[arguments.length - 1];
+fetch(url, {
+  credentials: 'include',
+  headers: {
+    'accept': 'application/json, text/plain, */*'
+  }
+})
+  .then(async (response) => {
+    done({
+      ok: response.ok,
+      status: response.status,
+      text: await response.text()
+    });
+  })
+  .catch((error) => {
+    done({
+      ok: false,
+      status: 0,
+      error: String(error)
+    });
+  });
+"""
+    result = driver.execute_async_script(script, api_url)
+    if not result.get("ok"):
+        error = result.get("error", f"HTTP {result.get('status')}")
+        raise RuntimeError(f"API request failed for {api_url}: {error}")
+    try:
+        return json.loads(result["text"])
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"API returned non-JSON for {api_url}") from exc
+
+
+def scrape_dom_cards(driver, page_index):
+    script = """
+const selector = arguments[0];
+const cards = Array.from(document.querySelectorAll(selector));
+return cards.map((card, position) => {
+  const linkEl = card.querySelector("a[href*='/properties/']");
+  const addressEl = card.querySelector("address");
+  const priceEl = card.querySelector("div[class*='price']");
+  const summaryEl = card.querySelector("[data-testid='property-description'], p[class*='summary']");
+  const imageEls = Array.from(card.querySelectorAll("img[src*='media.rightmove.co.uk']"));
+  const infoSpans = Array.from(
+    card.querySelectorAll("[data-testid='property-information'] span")
+  )
+    .map((el) => (el.textContent || '').trim())
+    .filter(Boolean);
+  const imageCountLabel = card.getAttribute("aria-label")
+    || (card.querySelector("[aria-label*='Property has']") || {}).getAttribute?.("aria-label")
+    || (card.querySelector("[aria-label*='Viewing photo']") || {}).getAttribute?.("aria-label")
+    || '';
+
+  return {
+    listing_url: linkEl ? linkEl.href.split('#')[0] : null,
+    address: addressEl ? addressEl.textContent : null,
+    price_text: priceEl ? priceEl.textContent : null,
+    summary: summaryEl ? summaryEl.textContent : null,
+    property_type: infoSpans[0] || null,
+    bedrooms: infoSpans[1] || null,
+    bathrooms: infoSpans[2] || null,
+    image_urls: Array.from(new Set(imageEls.map((img) => img.src))),
+    image_count_label: imageCountLabel,
+    featured: card.textContent.includes('FEATURED'),
+    position_on_page: position + 1
+  };
+});
+"""
+    cards = driver.execute_script(script, CARD_SELECTOR)
+    cleaned = []
+    for card in cards:
+        listing_url = _canonical_listing_url(card.get("listing_url"))
+        listing_id = _extract_property_id(listing_url)
+        image_urls = [url for url in card.get("image_urls", []) if IMAGE_URL_RE.search(url or "")]
+        cleaned.append({
+            "listing_id": listing_id,
+            "listing_url": listing_url,
+            "price_text": _extract_clean_price_text(card.get("price_text")),
+            "location": _normalise_space(card.get("address")),
+            "postcode": _first_valid_postcode(card.get("address")),
+            "property_type": _normalise_space(card.get("property_type")),
+            "bedrooms": _to_int_or_none(card.get("bedrooms")),
+            "bathrooms": _to_int_or_none(card.get("bathrooms")),
+            "summary": _normalise_space(card.get("summary")),
+            "image_url": image_urls[0] if image_urls else None,
+            "image_urls": image_urls,
+            "image_count": _extract_image_count(card.get("image_count_label")),
+            "featured": bool(card.get("featured")),
+            "position_on_page": card.get("position_on_page"),
+            "source_page_index": page_index,
+            "source": "dom",
+        })
+    return cleaned
+
+
+def _extract_image_count(label):
+    if not label:
+        return None
+    match = re.search(r"(\d+)\s+images?", str(label))
+    return int(match.group(1)) if match else None
+
+
+def merge_listing_data(api_listing, dom_listing):
+    merged = {}
+    for source in (api_listing or {}, dom_listing or {}):
+        for key, value in source.items():
+            if value in (None, "", []):
+                continue
+            if key == "image_urls":
+                existing = merged.get(key, [])
+                merged[key] = list(dict.fromkeys(existing + value))
+                continue
+            merged.setdefault(key, value)
+
+    if merged.get("image_urls") and not merged.get("image_url"):
+        merged["image_url"] = merged["image_urls"][0]
+    if not merged.get("listing_url") and merged.get("listing_id"):
+        merged["listing_url"] = f"https://www.rightmove.co.uk/properties/{merged['listing_id']}"
+    if not merged.get("postcode"):
+        merged["postcode"] = _first_valid_postcode(merged.get("location"), merged.get("summary"))
+    if not merged.get("price_amount") and merged.get("price_text"):
+        price_match = re.search(r"£\s*([\d,]+)", merged["price_text"])
+        if price_match:
+            merged["price_amount"] = int(price_match.group(1).replace(",", ""))
+    return merged
+
+
+def save_outputs(output_dir, merged_results, raw_pages, metadata):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = Path(output_dir)
+    raw_path = output_path / f"raw_pages_{timestamp}"
+    output_path.mkdir(parents=True, exist_ok=True)
+    raw_path.mkdir(parents=True, exist_ok=True)
+
+    for raw_page in raw_pages:
+        page_file = raw_path / f"rightmove_api_index_{raw_page['page_index']:03d}.json"
+        with page_file.open("w", encoding="utf-8") as handle:
+            json.dump(raw_page, handle, indent=2, ensure_ascii=False)
+
+    dataset = {
+        "meta": metadata,
+        "results": merged_results,
+    }
+
+    json_path = output_path / f"rightmove_search_results_{timestamp}.json"
+    with json_path.open("w", encoding="utf-8") as handle:
+        json.dump(dataset, handle, indent=2, ensure_ascii=False)
+
+    csv_path = output_path / f"rightmove_search_results_{timestamp}.csv"
+    fieldnames = [
+        "listing_id",
+        "price_amount",
+        "price_text",
+        "location",
+        "postcode",
+        "listing_url",
+        "image_url",
+        "image_count",
+        "property_type",
+        "bedrooms",
+        "bathrooms",
+        "latitude",
+        "longitude",
+        "summary",
+        "featured",
+        "position_on_page",
+        "source_page_index",
+    ]
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for item in merged_results:
+            row = dict(item)
+            writer.writerow({field: row.get(field) for field in fieldnames})
+
+    return json_path, csv_path, raw_path
+
+
+def main():
+    args = parse_args()
+    driver = setup_browser()
+    raw_pages = []
+
+    try:
+        if args.search_url:
+            driver.get(args.search_url)
+        else:
+            driver.get("https://www.rightmove.co.uk/")
+
+        prompt_manual_ready()
+
+        start_url = driver.current_url
+        parsed = urlparse(start_url)
+        start_query = parse_qs(parsed.query, keep_blank_values=True)
+        start_index = int(start_query.get("index", ["0"])[0])
+        keep_zero_index = "index" in start_query
+
+        all_results = {}
+
+        for page_offset in range(args.pages):
+            page_index = start_index + (page_offset * args.page_size)
+            page_url = _build_page_url(start_url, page_index, keep_zero_index)
+            api_url = _build_api_url(page_url)
+
+            print(f"\nScraping page index {page_index}")
+            print(f"  Page URL: {page_url}")
+            print(f"  API URL:  {api_url}")
+
+            driver.get(page_url)
+            if not wait_for_cards(driver):
+                raise RuntimeError(f"Cards did not appear for page index {page_index}")
+            time.sleep(args.wait_seconds)
+
+            payload = fetch_api_payload(driver, api_url)
+            dom_cards = scrape_dom_cards(driver, page_index)
+            api_listings = [_extract_listing_from_api(node, page_index) for node in _find_listing_dicts(payload)]
+
+            raw_pages.append({
+                "page_index": page_index,
+                "page_url": page_url,
+                "api_url": api_url,
+                "payload": payload,
+            })
+
+            by_id = {}
+            for item in api_listings + dom_cards:
+                listing_id = item.get("listing_id")
+                listing_url = item.get("listing_url")
+                key = listing_id or listing_url
+                if not key:
+                    continue
+                by_id.setdefault(key, {})
+                by_id[key] = merge_listing_data(by_id[key], item)
+
+            for key, value in by_id.items():
+                all_results[key] = merge_listing_data(all_results.get(key, {}), value)
+
+            print(
+                f"  Found {len(api_listings)} API listings, "
+                f"{len(dom_cards)} DOM cards, {len(by_id)} merged listings on this page."
+            )
+
+            if args.max_results and len(all_results) >= args.max_results:
+                print(f"  Reached max-results cap of {args.max_results}.")
+                break
+
+        merged_results = sorted(
+            all_results.values(),
+            key=lambda item: (
+                item.get("source_page_index", 0),
+                item.get("position_on_page") or 999,
+                str(item.get("listing_id") or ""),
+            ),
+        )
+        if args.max_results:
+            merged_results = merged_results[: args.max_results]
+
+        metadata = {
+            "generated_at": datetime.now().isoformat(),
+            "start_url": start_url,
+            "pages_requested": args.pages,
+            "page_size": args.page_size,
+            "max_results": args.max_results,
+            "results_count": len(merged_results),
+        }
+
+        json_path, csv_path, raw_path = save_outputs(args.output_dir, merged_results, raw_pages, metadata)
+
+        print("\nSaved outputs:")
+        print(f"  JSON dataset: {json_path}")
+        print(f"  CSV dataset:  {csv_path}")
+        print(f"  Raw API pages: {raw_path}")
+        print(f"  Listings: {len(merged_results)}")
+
+    finally:
+        driver.quit()
+
+
+if __name__ == "__main__":
+    main()

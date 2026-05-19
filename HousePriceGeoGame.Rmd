@@ -1,0 +1,1200 @@
+---
+output:
+  html_document:
+    df_print: paged
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+library(jsonlite)
+library(htmltools)
+
+options(stringsAsFactors = FALSE)
+
+project_root <- normalizePath(".", winslash = "/", mustWork = TRUE)
+output_dir <- file.path(project_root, "Scraper", "output")
+
+find_latest_dataset <- function(output_dir) {
+  json_files <- list.files(
+    output_dir,
+    pattern = "^rightmove_enriched_results_.*\\.json$",
+    full.names = TRUE
+  )
+  csv_files <- list.files(
+    output_dir,
+    pattern = "^rightmove_enriched_results_.*\\.csv$",
+    full.names = TRUE
+  )
+
+  if (length(json_files)) {
+    return(json_files[which.max(file.info(json_files)$mtime)])
+  }
+
+  if (length(csv_files)) {
+    return(csv_files[which.max(file.info(csv_files)$mtime)])
+  }
+
+  sample_path <- file.path(project_root, "Sample_Results_For_Testing.json")
+  if (file.exists(sample_path)) {
+    return(sample_path)
+  }
+
+  stop("No enriched Rightmove dataset was found in Scraper/output.")
+}
+
+find_game_datasets <- function(project_root, output_dir) {
+  root_json <- list.files(
+    project_root,
+    pattern = "^[A-Za-z0-9 _-]+_Results\\.json$",
+    full.names = TRUE
+  )
+  root_csv <- list.files(
+    project_root,
+    pattern = "^[A-Za-z0-9 _-]+_Results\\.csv$",
+    full.names = TRUE
+  )
+
+  root_files <- c(root_json, root_csv)
+  root_files <- root_files[file.exists(root_files)]
+
+  if (length(root_files)) {
+    return(root_files[order(basename(root_files))])
+  }
+
+  find_latest_dataset(output_dir)
+}
+
+`%||%` <- function(x, y) {
+  if (is.null(x) || length(x) == 0) y else x
+}
+
+coalesce_text <- function(...) {
+  values <- list(...)
+  for (value in values) {
+    if (!is.null(value) && length(value) > 0) {
+      text <- as.character(value[[1]])
+      if (!is.na(text) && nzchar(trimws(text))) {
+        return(text)
+      }
+    }
+  }
+  ""
+}
+
+extract_url_list <- function(value) {
+  if (is.null(value) || length(value) == 0) {
+    return(character())
+  }
+
+  if (is.list(value)) {
+    value <- unlist(value, use.names = FALSE)
+  }
+
+  if (length(value) == 1 && is.character(value)) {
+    text <- trimws(value)
+    if (!nzchar(text)) {
+      return(character())
+    }
+    if (startsWith(text, "[")) {
+      parsed <- tryCatch(fromJSON(text), error = function(e) character())
+      value <- parsed %||% character()
+    } else {
+      value <- text
+    }
+  }
+
+  urls <- unique(as.character(value))
+  urls <- urls[grepl("^https?://", urls)]
+  urls <- urls[!grepl("&quot;|javascript:", urls)]
+  urls
+}
+
+postcode_area <- function(postcode) {
+  if (is.null(postcode) || is.na(postcode) || !nzchar(trimws(postcode))) {
+    return("Unknown postcode area")
+  }
+
+  area <- sub("^([A-Z]{1,2}).*$", "\\1", toupper(trimws(postcode)))
+  if (!nzchar(area)) "Unknown postcode area" else area
+}
+
+fmt_price <- function(value) {
+  paste0("£", format(round(value), big.mark = ",", scientific = FALSE, trim = TRUE))
+}
+
+normalize_text <- function(text) {
+  text <- gsub("[\r\n\t]+", " ", text, perl = TRUE)
+  text <- gsub("\\s+", " ", text, perl = TRUE)
+  trimws(text)
+}
+
+regex_escape <- function(text) {
+  gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", text, perl = TRUE)
+}
+
+clean_listing_descriptions <- function(description, location, postcode, price_text, price_amount) {
+  raw_text <- normalize_text(description)
+
+  if (!nzchar(raw_text)) {
+    return(list(
+      description_redacted = "No listing description is available for this property.",
+      description_full = "No listing description is available for this property."
+    ))
+  }
+
+  trimmed_text <- sub(
+    "(Read full description|Brochures|COUNCIL TAX|Energy Performance Certificate|Utilities, rights & restrictions|Open map|Street View|My places|Stations Schools|Add an important place|Check how much you can borrow|Get an instant, personalised result|Show sellers you[’']re serious|No impact on your credit score|Get a Mortgage in Principle|Powered by|Renovation potential|Broadband speed|Property sale history|Recently sold & under offer|See similar nearby properties).*$",
+    "",
+    raw_text,
+    ignore.case = TRUE,
+    perl = TRUE
+  )
+
+  trimmed_text <- normalize_text(trimmed_text)
+  redacted_text <- trimmed_text
+
+  price_patterns <- c(
+    "£\\s?[0-9,]+(?:\\s*(?:pcm|pw|per\\s+month|per\\s+week))?",
+    "\\bguide\\s+price\\b",
+    "\\boffers\\s+over\\b",
+    "\\boffers\\s+in\\s+excess\\s+of\\b",
+    "\\bfrom\\s+£\\s?[0-9,]+",
+    "\\b[0-9]{3},[0-9]{3,}\\b"
+  )
+
+  if (nzchar(price_text)) {
+    price_patterns <- c(price_patterns, regex_escape(price_text))
+  }
+
+  if (is.finite(price_amount) && price_amount > 0) {
+    formatted_price <- format(price_amount, big.mark = ",", scientific = FALSE, trim = TRUE)
+    price_patterns <- c(price_patterns, regex_escape(formatted_price))
+  }
+
+  for (pattern in unique(price_patterns)) {
+    redacted_text <- gsub(
+      pattern,
+      "[REDACTED]",
+      redacted_text,
+      ignore.case = TRUE,
+      perl = TRUE
+    )
+  }
+
+  location_patterns <- character()
+
+  if (nzchar(location)) {
+    location_parts <- unique(trimws(unlist(strsplit(location, ","))))
+    location_parts <- location_parts[nzchar(location_parts)]
+    location_patterns <- c(location_patterns, vapply(location_parts, regex_escape, character(1)))
+  }
+
+  if (nzchar(postcode)) {
+    outward_code <- sub("\\s+[A-Z]{2}$", "", toupper(trimws(postcode)))
+    location_patterns <- c(location_patterns, regex_escape(postcode), regex_escape(outward_code))
+  }
+
+  location_patterns <- unique(location_patterns[nzchar(location_patterns)])
+
+  for (pattern in location_patterns) {
+    redacted_text <- gsub(
+      pattern,
+      "[REDACTED]",
+      redacted_text,
+      ignore.case = TRUE,
+      perl = TRUE
+    )
+  }
+
+  redacted_text <- gsub(
+    "\\b(in the heart of|moments from|within easy reach of|close to|near|nearby|located in|set within|positioned in|situated in)\\s+[A-Z][A-Za-z'’.-]+(?:\\s+[A-Z][A-Za-z'’.-]+)*(?:,\\s*[A-Z][A-Za-z'’.-]+(?:\\s+[A-Z][A-Za-z'’.-]+)*)*(?:,?\\s+and\\s+[A-Z][A-Za-z'’.-]+(?:\\s+[A-Z][A-Za-z'’.-]+)*)?",
+    "\\1 [REDACTED]",
+    redacted_text,
+    ignore.case = TRUE,
+    perl = TRUE
+  )
+
+  redacted_text <- gsub(
+    "\\b[A-Z]{1,2}\\d[A-Z\\d]?\\s*\\d[A-Z]{2}\\b",
+    "[REDACTED]",
+    redacted_text,
+    perl = TRUE
+  )
+  redacted_text <- gsub(
+    "\\b[A-Z]{1,2}\\d{1,2}[A-Z]?\\b",
+    "[REDACTED]",
+    redacted_text,
+    perl = TRUE
+  )
+  redacted_text <- gsub(
+    "(?<!\\[)(?<!^)(?<![.!?]\\s)\\b[A-Z][A-Za-z'’.-]+\\b(?!\\])",
+    "[REDACTED]",
+    redacted_text,
+    perl = TRUE
+  )
+  redacted_text <- gsub(
+    "\\[\\[REDACTED\\]\\]",
+    "[REDACTED]",
+    redacted_text,
+    perl = TRUE
+  )
+  redacted_text <- gsub(
+    "(\\[REDACTED\\]\\s*){2,}",
+    "[REDACTED] ",
+    redacted_text,
+    perl = TRUE
+  )
+  redacted_text <- gsub("\\s+([,.;:])", "\\1", redacted_text, perl = TRUE)
+  redacted_text <- gsub("([,.;:])\\s*([,.;:])+", "\\1", redacted_text, perl = TRUE)
+  redacted_text <- normalize_text(redacted_text)
+
+  if (!nzchar(redacted_text)) {
+    redacted_text <- "Description withheld because it contains too many direct price or location clues."
+  }
+
+  list(
+    description_redacted = redacted_text,
+    description_full = trimmed_text
+  )
+}
+
+make_card_title <- function(bedrooms, property_type) {
+  bedroom_text <- trimws(as.character(bedrooms))
+  property_text <- trimws(as.character(property_type))
+
+  if (!nzchar(property_text)) {
+    property_text <- "Property"
+  }
+
+  if (!nzchar(bedroom_text) || identical(bedroom_text, "Not listed") || is.na(bedroom_text)) {
+    return(property_text)
+  }
+
+  paste0(bedroom_text, "-bed ", property_text)
+}
+
+infer_city_name <- function(dataset_path, location = "") {
+  file_label <- sub("\\.[^.]+$", "", basename(dataset_path))
+  file_label <- sub("_Results$", "", file_label, ignore.case = TRUE)
+  file_label <- gsub("[_-]+", " ", file_label)
+  file_label <- trimws(file_label)
+
+  if (nzchar(file_label)) {
+    return(file_label)
+  }
+
+  location_parts <- trimws(unlist(strsplit(location, ",")))
+  location_parts <- location_parts[nzchar(location_parts)]
+
+  if (!length(location_parts)) {
+    return("Unknown city")
+  }
+
+  tail(location_parts, 1)
+}
+
+load_properties <- function(dataset_paths) {
+  if (!length(dataset_paths)) {
+    stop("No dataset files were provided.")
+  }
+
+  records <- unlist(lapply(dataset_paths, function(dataset_path) {
+    if (grepl("\\.json$", dataset_path, ignore.case = TRUE)) {
+      raw_data <- fromJSON(dataset_path, simplifyVector = FALSE)
+      rows <- raw_data$results %||% raw_data
+    } else {
+      csv_data <- read.csv(dataset_path, stringsAsFactors = FALSE)
+      rows <- split(csv_data, seq_len(nrow(csv_data)))
+      rows <- lapply(rows, function(row) as.list(row[1, , drop = FALSE]))
+    }
+
+    lapply(rows, function(row) {
+      price_amount <- suppressWarnings(as.numeric(coalesce_text(row$price_amount, row$price)))
+      latitude <- suppressWarnings(as.numeric(coalesce_text(row$latitude)))
+      longitude <- suppressWarnings(as.numeric(coalesce_text(row$longitude)))
+      price_text <- coalesce_text(row$price_text, row$detail_price_text)
+      postcode <- coalesce_text(row$postcode, row$search_postcode)
+      location <- coalesce_text(row$location, row$display_address, row$search_location)
+      property_type <- coalesce_text(row$property_type, "Property")
+      bedrooms <- coalesce_text(row$bedrooms, "Not listed")
+      bathrooms <- coalesce_text(row$bathrooms, "Not listed")
+      tenure <- coalesce_text(row$tenure, "Not listed")
+      size_text <- coalesce_text(row$size_text, "Not listed")
+      added_text <- coalesce_text(row$added_text, "Date not listed")
+      description <- coalesce_text(row$description, row$summary, row$search_summary)
+      cleaned_descriptions <- clean_listing_descriptions(
+        description = description,
+        location = location,
+        postcode = postcode,
+        price_text = price_text,
+        price_amount = price_amount
+      )
+
+      image_urls <- extract_url_list(row$image_urls)
+      if (!length(image_urls)) {
+        image_urls <- extract_url_list(row$property_photo_urls)
+      }
+      if (!length(image_urls)) {
+        image_urls <- extract_url_list(row$search_image_urls)
+      }
+      if (!length(image_urls)) {
+        image_urls <- extract_url_list(row$image_url)
+      }
+      floorplan_urls <- extract_url_list(row$floorplan_urls)
+      image_urls <- unique(c(image_urls, floorplan_urls))
+
+      city_group <- infer_city_name(dataset_path, location)
+
+      list(
+        listing_id = coalesce_text(row$listing_id),
+        listing_url = coalesce_text(row$listing_url, row$url, row$property_url),
+        source_dataset = basename(dataset_path),
+        card_title = make_card_title(bedrooms, property_type),
+        price_amount = price_amount,
+        location = location,
+        postcode = postcode,
+        city_group = city_group,
+        property_type = property_type,
+        bedrooms = bedrooms,
+        bathrooms = bathrooms,
+        tenure = tenure,
+        size_text = size_text,
+        added_text = added_text,
+        description_redacted = cleaned_descriptions$description_redacted,
+        description_full = cleaned_descriptions$description_full,
+        latitude = if (is.finite(latitude)) latitude else NULL,
+        longitude = if (is.finite(longitude)) longitude else NULL,
+        image_urls = image_urls
+      )
+    })
+  }), recursive = FALSE)
+
+  records <- Filter(function(row) {
+    is.finite(row$price_amount) && row$price_amount > 0
+  }, records)
+
+  if (!length(records)) {
+    stop("The dataset loaded successfully, but no listings had a valid price.")
+  }
+
+  records
+}
+
+dataset_paths <- find_game_datasets(project_root, output_dir)
+properties <- load_properties(dataset_paths)
+
+price_values <- vapply(properties, `[[`, numeric(1), "price_amount")
+city_choices <- sort(unique(vapply(properties, `[[`, character(1), "city_group")))
+
+data_summary <- list(
+  dataset_name = if (length(dataset_paths) == 1) basename(dataset_paths[[1]]) else paste(length(dataset_paths), "city files"),
+  dataset_files = basename(dataset_paths),
+  listing_count = length(properties),
+  min_price = min(price_values, na.rm = TRUE),
+  median_price = median(price_values, na.rm = TRUE),
+  max_price = max(price_values, na.rm = TRUE),
+  cities = length(city_choices)
+)
+
+payload <- list(
+  dataset = data_summary,
+  city_choices = city_choices,
+  properties = properties
+)
+
+payload_json <- toJSON(payload, auto_unbox = TRUE, null = "null", digits = 12)
+payload_json <- gsub("</", "<\\\\/", payload_json, fixed = TRUE)
+
+game_css <- paste(
+  c(
+    ".hp-game {font-family: 'Trebuchet MS', 'Segoe UI', sans-serif; color: #0c1d4a;}",
+    ".hp-shell {background: linear-gradient(180deg, #f5f7fb 0%, #eef2f8 100%); border: 1px solid #dbe3ef; border-radius: 26px; padding: 22px; box-shadow: 0 18px 46px rgba(17, 34, 78, 0.08);}",
+    ".hp-topline {display: block; margin-bottom: 20px;}",
+    ".hp-top-score {width: 100%; background: linear-gradient(145deg, #ffffff 0%, #f7f9fd 100%); border: 1px solid #d9e1ee; border-radius: 18px; padding: 16px 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);}",
+    ".hp-portal {display: grid; grid-template-columns: minmax(0, 1.55fr) 360px; gap: 22px; align-items: start;}",
+    ".hp-main-column, .hp-side-column {display: grid; gap: 18px;}",
+    ".hp-gallery-card, .hp-listing-card, .hp-agent-card, .hp-reveal-card, .hp-desc-card, .hp-viz {background: white; border: 1px solid #dce2ec; border-radius: 22px; box-shadow: 0 10px 24px rgba(13, 29, 74, 0.05); padding: 18px;}",
+    ".hp-gallery-card {padding: 12px;}",
+    ".hp-gallery-shell {display: grid; gap: 12px;}",
+    ".hp-hero-grid {display: grid; grid-template-columns: minmax(0, 2.45fr) minmax(260px, 1.15fr); gap: 12px;}",
+    ".hp-main-photo {position: relative; overflow: hidden; border-radius: 18px; background: #ebeff5; min-height: 420px;}",
+    ".hp-main-photo img {display: block; width: 100%; height: 100%; min-height: 420px; object-fit: cover;}",
+    ".hp-photo-open {display: block; width: 100%; height: 100%; min-height: 420px; padding: 0; border: 0; background: transparent; cursor: zoom-in;}",
+    ".hp-side-previews {display: grid; grid-template-rows: 1fr 1fr; gap: 10px;}",
+    ".hp-side-thumb {position: relative; border: 0; padding: 0; overflow: hidden; border-radius: 18px; background: #ebeff5; min-height: 205px; cursor: pointer;}",
+    ".hp-side-thumb img {width: 100%; height: 100%; object-fit: cover; display: block;}",
+    ".hp-side-thumb.more::after {content: attr(data-more); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(12, 29, 74, 0.46); color: white; font-size: 1.6rem; font-weight: 700;}",
+    ".hp-gallery-nav {position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border: 0; border-radius: 999px; background: rgba(255,255,255,0.92); color: #0c1d4a; font-size: 1.2rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 10px rgba(12,29,74,0.18);}",
+    ".hp-gallery-nav.prev {left: 14px;}",
+    ".hp-gallery-nav.next {right: 14px;}",
+    ".hp-counter {position: absolute; right: 14px; bottom: 14px; background: rgba(255,255,255,0.96); color: #0c1d4a; border-radius: 14px; padding: 10px 14px; font-size: 1rem; font-weight: 700; box-shadow: 0 8px 18px rgba(12,29,74,0.16);}",
+    ".hp-photo-placeholder {width: 100%; min-height: 280px; display: flex; align-items: center; justify-content: center; color: #5d6880; background: #eef2f7; border-radius: 18px; border: 1px dashed #cfd8e4; text-align: center; padding: 18px;}",
+    ".hp-thumb-strip {display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin;}",
+    ".hp-thumb {flex: 0 0 112px; height: 76px; border: 2px solid transparent; border-radius: 14px; background: #eef2f7; padding: 0; overflow: hidden; cursor: pointer;}",
+    ".hp-thumb.active {border-color: #00deb6; box-shadow: 0 0 0 1px rgba(0, 222, 182, 0.2);}",
+    ".hp-thumb img {width: 100%; height: 100%; object-fit: cover; display: block;}",
+    ".hp-chip-row {display: flex; justify-content: space-between; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;}",
+    ".hp-chip {display: inline-flex; align-items: center; gap: 8px; background: #12764f; color: white; border-radius: 999px; padding: 8px 14px; font-size: 0.84rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;}",
+    ".hp-added {color: #6a7488; font-size: 0.95rem;}",
+    ".hp-title-row {display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;}",
+    ".hp-card-title {margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.03em;}",
+    ".hp-headline p {margin: 8px 0 0 0; color: #5c6780; font-size: 1rem;}",
+    ".hp-city-hint {border: 1px solid #cfd8e6; background: #f6f8fc; color: #4f5f80; border-radius: 999px; padding: 9px 14px; font-size: 0.88rem; font-weight: 700; cursor: pointer; white-space: nowrap;}",
+    ".hp-city-hint.revealed {background: #e7fbf5; border-color: #8ad5bf; color: #0b5a45;}",
+    ".hp-guess-block {margin-top: 18px; padding: 20px; border-radius: 20px; background: linear-gradient(135deg, #f9fbff 0%, #f0f5fc 100%); border: 1px solid #dde6f1;}",
+    ".hp-guess-label {display: block; color: #63708c; font-size: 0.92rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 10px;}",
+    ".hp-price-entry {display: flex; align-items: center; gap: 8px; font-size: 2.7rem; font-weight: 800; color: #0b1950;}",
+    ".hp-price-entry span {flex: 0 0 auto;}",
+    ".hp-price-entry input {width: 100%; border: 0; background: transparent; color: #0b1950; font-size: 2.7rem; font-weight: 800; padding: 0; outline: none; appearance: none; -moz-appearance: textfield;}",
+    ".hp-price-entry input::placeholder {color: #9aa6be; font-weight: 700;}",
+    ".hp-guess-help {margin: 10px 0 0 0; color: #68748c; font-size: 0.95rem;}",
+    ".hp-facts {display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 18px; border: 1px solid #dde4ef; border-radius: 18px; overflow: hidden; background: #dde4ef;}",
+    ".hp-fact {background: white; padding: 16px 14px; min-height: 92px;}",
+    ".hp-fact strong {display: block; margin-bottom: 8px; font-size: 0.84rem; color: #76809a; letter-spacing: 0.05em; text-transform: uppercase;}",
+    ".hp-fact span {font-size: 1.25rem; color: #0b1950; font-weight: 700;}",
+    ".hp-desc-card {padding: 0; overflow: hidden;}",
+    ".hp-desc {margin-top: 0; min-height: 100%; padding: 26px 30px; border: 0; border-radius: 22px; background: linear-gradient(180deg, #fcfdff 0%, #f4f7fc 100%);}",
+    ".hp-desc-title {margin: 0 0 12px 0; font-size: 1.15rem; font-weight: 700;}",
+    ".hp-desc p {margin: 0; color: #39465f; line-height: 1.72; font-size: 1rem;}",
+    ".hp-desc-note {margin-top: 12px; color: #7c5a22; font-weight: 700;}",
+    ".hp-agent-head {font-size: 0.88rem; letter-spacing: 0.08em; text-transform: uppercase; color: #6e7790;}",
+    ".hp-agent-name {margin-top: 0; font-size: 1.7rem; line-height: 1.1; font-weight: 800; letter-spacing: -0.03em;}",
+    ".hp-agent-sub {margin-top: 10px; color: #5c6881; line-height: 1.5;}",
+    ".hp-score-list {margin-top: 16px; padding-top: 0;}",
+    ".hp-score-line {display: flex; justify-content: space-between; gap: 12px; margin: 8px 0; color: #34405b;}",
+    ".hp-score-line strong {color: #0b1950;}",
+    ".hp-control {margin-top: 16px;}",
+    ".hp-control label {display: block; font-size: 0.84rem; font-weight: 700; color: #6c7590; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px;}",
+    ".hp-control select {width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid #cfdae8; background: white; color: #0b1950; font-size: 1rem;}",
+    ".hp-actions {display: grid; gap: 12px; margin-top: 18px;}",
+    ".hp-actions button {border: 0; border-radius: 14px; padding: 16px 18px; font-size: 1.15rem; font-weight: 800; cursor: pointer;}",
+    ".hp-submit {background: #00deb6; color: #0b1950;}",
+    ".hp-next {background: #11184d; color: white;}",
+    ".hp-panel-title {margin-top: 0; margin-bottom: 12px; font-size: 1.17rem; font-weight: 700;}",
+    ".hp-reveal-card p {margin: 8px 0; color: #34405b; line-height: 1.5;}",
+    ".hp-result-price {font-size: 2rem; font-weight: 800; color: #0b1950; margin: 2px 0 6px 0;}",
+    ".hp-lightbox {position: fixed; inset: 0; background: rgba(5, 12, 32, 0.82); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 9999;}",
+    ".hp-lightbox.open {display: flex;}",
+    ".hp-lightbox-frame {position: relative; width: min(1200px, 100%); background: #0b153a; border-radius: 22px; padding: 20px; box-shadow: 0 30px 80px rgba(0,0,0,0.45);}",
+    ".hp-lightbox-close {position: absolute; top: 16px; right: 16px; z-index: 4; display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 999px; background: rgba(255,255,255,0.12); color: white; font-size: 1.4rem; line-height: 1; cursor: pointer;}",
+    ".hp-lightbox-stage {position: relative; min-height: 70vh; display: flex; align-items: center; justify-content: center;}",
+    ".hp-lightbox-stage img {max-width: 100%; max-height: 70vh; border-radius: 14px; object-fit: contain;}",
+    ".hp-lightbox-nav {position: absolute; top: 50%; transform: translateY(-50%); width: 50px; height: 50px; border: 0; border-radius: 999px; background: rgba(255,255,255,0.14); color: white; font-size: 1.4rem; cursor: pointer;}",
+    ".hp-lightbox-nav.prev {left: 10px;}",
+    ".hp-lightbox-nav.next {right: 10px;}",
+    ".hp-lightbox-meta {display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-top: 14px; color: #dfe8ff; flex-wrap: wrap;}",
+    ".hp-lightbox-strip {display: flex; gap: 10px; overflow-x: auto; margin-top: 14px; padding-bottom: 4px;}",
+    ".hp-lightbox-thumb {flex: 0 0 100px; height: 68px; padding: 0; border: 2px solid transparent; border-radius: 12px; overflow: hidden; background: rgba(255,255,255,0.08); cursor: pointer;}",
+    ".hp-lightbox-thumb.active {border-color: #00deb6;}",
+    ".hp-lightbox-thumb img {width: 100%; height: 100%; object-fit: cover; display: block;}",
+    ".hp-empty {color: #69738a; background: #f5f7fb; border: 1px dashed #cfd8e4; border-radius: 16px; padding: 18px;}",
+    ".hp-viz-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px;}",
+    ".hp-viz-title {margin-top: 0; margin-bottom: 10px; font-size: 1.17rem; font-weight: 700;}",
+    ".hp-viz p {margin-top: 0; color: #60708b;}",
+    ".hp-range {margin-top: 14px;}",
+    ".hp-range-track {position: relative; height: 16px; background: linear-gradient(90deg, #dfe5ee 0%, #d4e6df 100%); border-radius: 999px; overflow: hidden;}",
+    ".hp-range-marker {position: absolute; top: -5px; width: 6px; height: 26px; border-radius: 999px;}",
+    ".hp-range-marker.actual {background: #ef4836;}",
+    ".hp-range-marker.guess {background: #11184d;}",
+    ".hp-range-scale {display: flex; justify-content: space-between; color: #5e6c88; font-size: 0.9rem; margin-top: 10px;}",
+    ".hp-legend {display: flex; gap: 14px; flex-wrap: wrap; color: #40506f; font-size: 0.92rem; margin-top: 10px;}",
+    ".hp-leaderboard {margin-top: 16px; border-top: 1px solid #e4eaf2; padding-top: 14px;}",
+    ".hp-leaderboard-head {display: flex; justify-content: space-between; gap: 12px; align-items: center; color: #55657f; font-size: 0.9rem; margin-bottom: 10px; flex-wrap: wrap;}",
+    ".hp-leaderboard-table {border: 1px solid #e2e8f1; border-radius: 14px; overflow: hidden;}",
+    ".hp-leaderboard-row {display: grid; grid-template-columns: minmax(0, 1.8fr) 0.9fr 1fr 0.8fr 0.8fr; gap: 10px; align-items: center; padding: 10px 12px; background: white; border-top: 1px solid #eef2f7; font-size: 0.93rem;}",
+    ".hp-leaderboard-row:first-child {border-top: 0;}",
+    ".hp-leaderboard-row.header {background: #f6f8fc; color: #61708c; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;}",
+    ".hp-leaderboard-row.current {background: #f9fcff;}",
+    ".hp-leader-link {color: #0b1950; text-decoration: none; font-weight: 700;}",
+    ".hp-leader-link:hover {text-decoration: underline;}",
+    ".hp-leader-pagination {display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap;}",
+    ".hp-leader-pagination button {border: 1px solid #ccd6e5; background: white; color: #0b1950; border-radius: 12px; padding: 8px 12px; font-weight: 700; cursor: pointer;}",
+    ".hp-leader-pagination button:disabled {opacity: 0.45; cursor: default;}",
+    ".hp-dot {display: inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 6px;}",
+    ".hp-viz svg {width: 100%; height: 280px; display: block; background: #fbfcfe; border-radius: 14px; border: 1px solid #e2e8f1;}",
+    ".hp-footnote {margin-top: 18px; color: #5b6780; font-size: 0.92rem;}",
+    "@media (max-width: 1100px) {.hp-portal {grid-template-columns: 1fr;} .hp-side-column {grid-template-columns: 1fr 1fr; align-items: start;}}",
+    "@media (max-width: 860px) {.hp-hero-grid, .hp-viz-grid, .hp-side-column, .hp-facts {grid-template-columns: 1fr;} .hp-side-previews {grid-template-columns: 1fr 1fr; grid-template-rows: auto;} .hp-main-photo, .hp-main-photo img {min-height: 300px;} .hp-price-entry, .hp-price-entry input {font-size: 2.1rem;} .hp-leaderboard-row {grid-template-columns: minmax(0, 1.45fr) 0.8fr 1fr 0.75fr 0.75fr;}}",
+    "@media (max-width: 620px) {.hp-shell {padding: 16px;} .hp-title h2 {font-size: 1.7rem;} .hp-card-title {font-size: 1.5rem;} .hp-price-entry, .hp-price-entry input {font-size: 1.8rem;} .hp-thumb {flex-basis: 94px; height: 68px;}}"
+  ),
+  collapse = "\n"
+)
+
+game_js <- paste(
+  c(
+    "(function () {",
+    "  const dataNode = document.getElementById('house-game-data');",
+    "  const mount = document.getElementById('house-game-root');",
+    "  if (!dataNode || !mount) return;",
+    "  const payload = JSON.parse(dataNode.textContent);",
+    "  const properties = payload.properties || [];",
+    "  const dataset = payload.dataset || {};",
+    "  const cityChoices = payload.city_choices || [];",
+    "  if (!properties.length) {",
+    "    mount.innerHTML = '<div class=\"hp-empty\">No properties were loaded into the game.</div>';",
+    "    return;",
+    "  }",
+    "",
+    "  const state = {",
+    "    filter: 'All cities',",
+    "    available: properties.map((_, index) => index),",
+    "    used: [],",
+    "    current: 0,",
+    "    currentImage: 0,",
+    "    lightboxOpen: false,",
+    "    round: 1,",
+    "    totalScore: 0,",
+    "    history: [],",
+    "    leaderboardPage: 1,",
+    "    cityHintRevealed: false,",
+    "    revealed: false,",
+    "    lastGuess: null,",
+    "    lastPctOff: null,",
+    "    lastScore: null",
+    "  };",
+    "",
+    "  const els = {",
+    "    filter: document.getElementById('hp-city-filter'),",
+    "    gallery: document.getElementById('hp-gallery'),",
+    "    headline: document.getElementById('hp-headline'),",
+    "    facts: document.getElementById('hp-facts'),",
+    "    description: document.getElementById('hp-description'),",
+    "    score: document.getElementById('hp-score'),",
+    "    guess: document.getElementById('hp-guess'),",
+    "    reveal: document.getElementById('hp-reveal'),",
+    "    priceViz: document.getElementById('hp-price-viz'),",
+    "    geoViz: document.getElementById('hp-geo-viz'),",
+    "    lightbox: document.getElementById('hp-lightbox'),",
+    "    lightboxImage: document.getElementById('hp-lightbox-image'),",
+    "    lightboxCounter: document.getElementById('hp-lightbox-counter'),",
+    "    lightboxStrip: document.getElementById('hp-lightbox-strip')",
+    "  };",
+    "",
+    "  function fmtPrice(value) {",
+    "    return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(value);",
+    "  }",
+    "",
+    "  function formatNumberInput(value) {",
+    "    const digits = String(value || '').replace(/[^0-9]/g, '');",
+    "    if (!digits) return '';",
+    "    return new Intl.NumberFormat('en-GB').format(Number(digits));",
+    "  }",
+    "",
+    "  function parseGuessValue(value) {",
+    "    const digits = String(value || '').replace(/[^0-9]/g, '');",
+    "    return digits ? Number(digits) : NaN;",
+    "  }",
+    "",
+    "  function percentageOff(guess, actual) {",
+    "    if (!Number.isFinite(guess) || !Number.isFinite(actual) || guess <= 0 || actual <= 0) return 0;",
+    "    return Math.round((Math.abs(guess - actual) / actual) * 100);",
+    "  }",
+    "",
+    "  function scoreFromPctOff(pctOff) {",
+    "    if (!Number.isFinite(pctOff) || pctOff < 0) return 0;",
+    "    return Math.max(0, 1000 - (pctOff * 10));",
+    "  }",
+    "",
+    "  function guessedLeaderboard() {",
+    "    return state.history.slice().sort(function (a, b) {",
+    "      const priceDiff = (properties[b.index].price_amount || 0) - (properties[a.index].price_amount || 0);",
+    "      return priceDiff !== 0 ? priceDiff : a.order - b.order;",
+    "    });",
+    "  }",
+    "",
+    "  function clamp(value, min, max) {",
+    "    return Math.min(Math.max(value, min), max);",
+    "  }",
+    "",
+    "  function median(values) {",
+    "    const sorted = values.filter(Number.isFinite).slice().sort((a, b) => a - b);",
+    "    if (!sorted.length) return 250000;",
+    "    const mid = Math.floor(sorted.length / 2);",
+    "    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;",
+    "  }",
+    "",
+    "  function stepSize(values) {",
+    "    const med = median(values);",
+    "    if (med >= 1000000) return 25000;",
+    "    if (med >= 500000) return 10000;",
+    "    return 5000;",
+    "  }",
+    "",
+    "  function roundToStep(value, step) {",
+    "    return Math.max(step, Math.round(value / step) * step);",
+    "  }",
+    "",
+    "  function randomChoice(values) {",
+    "    return values[Math.floor(Math.random() * values.length)];",
+    "  }",
+    "",
+    "  function escapeHtml(text) {",
+    "    return String(text ?? '').replace(/[&<>\\\"']/g, function (char) {",
+    "      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\\\"': '&quot;', \"'\": '&#39;' })[char];",
+    "    });",
+    "  }",
+    "",
+    "  function currentProperty() {",
+    "    return properties[state.current];",
+    "  }",
+    "",
+    "  function currentImages() {",
+    "    const row = currentProperty();",
+    "    return Array.isArray(row.image_urls) ? row.image_urls : [];",
+    "  }",
+    "",
+    "  function poolIndices() {",
+    "    if (state.filter === 'All cities') return properties.map((_, index) => index);",
+    "    return properties.map((row, index) => row.city_group === state.filter ? index : -1).filter(index => index >= 0);",
+    "  }",
+    "",
+    "  function resetForFilter() {",
+    "    state.available = poolIndices();",
+    "    state.used = [];",
+    "    state.round = 1;",
+    "    state.totalScore = 0;",
+    "    state.history = [];",
+    "    state.leaderboardPage = 1;",
+    "    state.cityHintRevealed = false;",
+    "    state.revealed = false;",
+    "    state.lastGuess = null;",
+    "    state.lastPctOff = null;",
+    "    state.lastScore = null;",
+    "    state.current = randomChoice(state.available);",
+    "    state.currentImage = 0;",
+    "    state.lightboxOpen = false;",
+    "    const poolPrices = state.available.map(index => properties[index].price_amount);",
+    "    const step = stepSize(poolPrices);",
+    "    els.guess.step = String(step);",
+    "    els.guess.value = '';",
+    "    renderAll();",
+    "  }",
+    "",
+    "  function thumbMarkup(url, index, active) {",
+    "    return '<button class=\"hp-thumb ' + (active ? 'active' : '') + '\" data-photo-index=\"' + index + '\"><img src=\"' + escapeHtml(url) + '\" alt=\"Listing image thumbnail\"></button>';",
+    "  }",
+    "",
+    "  function previewMarkup(url, index, moreLabel) {",
+    "    if (!url) {",
+    "      return '<div class=\"hp-photo-placeholder\">No more photos</div>';",
+    "    }",
+    "    const extraClass = moreLabel ? ' more' : '';",
+    "    const extraAttr = moreLabel ? ' data-more=\"' + escapeHtml(moreLabel) + '\"' : '';",
+    "    return '<button class=\"hp-side-thumb' + extraClass + '\" data-photo-index=\"' + index + '\"' + extraAttr + '><img src=\"' + escapeHtml(url) + '\" alt=\"Listing preview image\"></button>';",
+    "  }",
+    "",
+    "  function renderSummary() {",
+    "    if (!els.summary) return;",
+    "    const poolLabel = state.filter === 'All cities' ? 'all cities' : state.filter;",
+    "    els.summary.innerHTML = '' +",
+    "      '<strong>Dataset:</strong> ' + escapeHtml(dataset.dataset_name || 'Rightmove export') + '<br>' +",
+    "      '<strong>Listings:</strong> ' + properties.length + ' total, ' + state.available.length + ' in the current pool<br>' +",
+    "      '<strong>Price range:</strong> ' + fmtPrice(dataset.min_price) + ' to ' + fmtPrice(dataset.max_price) + '<br>' +",
+    "      '<strong>Current city:</strong> ' + escapeHtml(poolLabel);",
+    "  }",
+    "",
+    "  function renderGallery() {",
+    "    const images = currentImages();",
+    "    if (!images.length) {",
+    "      els.gallery.innerHTML = '<div class=\"hp-photo-placeholder\">No images are available for this listing.</div>';",
+    "      return;",
+    "    }",
+    "    state.currentImage = ((state.currentImage % images.length) + images.length) % images.length;",
+    "    const mainIndex = state.currentImage;",
+    "    const nextOne = images.length > 1 ? images[(mainIndex + 1) % images.length] : null;",
+    "    const nextTwo = images.length > 2 ? images[(mainIndex + 2) % images.length] : null;",
+    "    const extraCount = images.length > 3 ? '+' + (images.length - 3) : '';",
+    "    const thumbs = images.map(function (url, index) { return thumbMarkup(url, index, index === mainIndex); }).join('');",
+    "    els.gallery.innerHTML = '' +",
+    "      '<div class=\"hp-gallery-shell\">' +",
+    "        '<div class=\"hp-hero-grid\">' +",
+    "          '<div class=\"hp-main-photo\">' +",
+    "            '<button class=\"hp-photo-open\" data-action=\"open-lightbox\" aria-label=\"Open larger image\"><img src=\"' + escapeHtml(images[mainIndex]) + '\" alt=\"Current property image\"></button>' +",
+    "            (images.length > 1 ? '<button class=\"hp-gallery-nav prev\" data-action=\"gallery-prev\" aria-label=\"Previous image\">&#8249;</button>' : '') +",
+    "            (images.length > 1 ? '<button class=\"hp-gallery-nav next\" data-action=\"gallery-next\" aria-label=\"Next image\">&#8250;</button>' : '') +",
+    "            '<div class=\"hp-counter\">' + (mainIndex + 1) + '/' + images.length + '</div>' +",
+    "          '</div>' +",
+    "          '<div class=\"hp-side-previews\">' +",
+    "            previewMarkup(nextOne, (mainIndex + 1) % images.length, '') +",
+    "            previewMarkup(nextTwo, (mainIndex + 2) % images.length, extraCount) +",
+    "          '</div>' +",
+    "        '</div>' +",
+    "        '<div class=\"hp-thumb-strip\">' + thumbs + '</div>' +",
+    "      '</div>';",
+    "  }",
+    "",
+    "  function renderLightbox() {",
+    "    const images = currentImages();",
+    "    if (!state.lightboxOpen || !images.length) {",
+    "      els.lightbox.classList.remove('open');",
+    "      return;",
+    "    }",
+    "    state.currentImage = ((state.currentImage % images.length) + images.length) % images.length;",
+    "    els.lightbox.classList.add('open');",
+    "    els.lightboxImage.src = images[state.currentImage];",
+    "    els.lightboxCounter.textContent = (state.currentImage + 1) + ' / ' + images.length;",
+    "    els.lightboxStrip.innerHTML = images.map(function (url, index) {",
+    "      return '<button class=\"hp-lightbox-thumb ' + (index === state.currentImage ? 'active' : '') + '\" data-photo-index=\"' + index + '\" data-lightbox-thumb=\"true\"><img src=\"' + escapeHtml(url) + '\" alt=\"Full screen thumbnail\"></button>';",
+    "    }).join('');",
+    "  }",
+    "",
+    "  function openLightbox() {",
+    "    if (!currentImages().length) return;",
+    "    state.lightboxOpen = true;",
+    "    renderLightbox();",
+    "  }",
+    "",
+    "  function closeLightbox() {",
+    "    state.lightboxOpen = false;",
+    "    renderLightbox();",
+    "  }",
+    "",
+    "  function renderScore() {",
+    "    const poolLabel = state.filter === 'All cities' ? 'all cities' : state.filter;",
+    "    els.score.innerHTML = '' +",
+    "      '<div class=\"hp-agent-name\">Scoreboard</div>' +",
+    "      '<div class=\"hp-score-list\">' +",
+    "        '<div class=\"hp-score-line\"><span>Round</span><strong>' + state.round + '</strong></div>' +",
+    "        '<div class=\"hp-score-line\"><span>Total score</span><strong>' + state.totalScore + '</strong></div>' +",
+    "        '<div class=\"hp-score-line\"><span>Listings played</span><strong>' + state.used.length + '</strong></div>' +",
+    "        '<div class=\"hp-score-line\"><span>Pool size</span><strong>' + state.available.length + '</strong></div>' +",
+    "        '<div class=\"hp-score-line\"><span>City</span><strong>' + escapeHtml(poolLabel) + '</strong></div>' +",
+    "      '</div>';",
+    "  }",
+    "",
+    "  function renderListing() {",
+    "    const row = currentProperty();",
+    "    const addressLine = state.revealed ? escapeHtml(row.location || 'Address not listed') : 'Address hidden until you guess';",
+    "    const cityHint = state.cityHintRevealed",
+    "      ? '<button class=\"hp-city-hint revealed\" type=\"button\" data-action=\"toggle-city-hint\">' + escapeHtml(row.city_group || 'Unknown city') + '</button>'",
+    "      : '<button class=\"hp-city-hint\" type=\"button\" data-action=\"toggle-city-hint\">Reveal city hint</button>';",
+    "    els.headline.innerHTML = '' +",
+    "      '<div class=\"hp-chip-row\">' +",
+    "        '<span class=\"hp-chip\">Price challenge</span>' +",
+    "        '<span class=\"hp-added\">' + escapeHtml(row.added_text || 'Date not listed') + '</span>' +",
+    "      '</div>' +",
+    "      '<div class=\"hp-headline\">' +",
+    "        '<div class=\"hp-title-row\"><div class=\"hp-card-title\">' + escapeHtml(row.card_title) + '</div>' + cityHint + '</div>' +",
+    "        '<p>' + addressLine + '</p>' +",
+    "      '</div>';",
+    "",
+    "    els.facts.innerHTML = '' +",
+    "      '<div class=\"hp-fact\"><strong>Property type</strong><span>' + escapeHtml(row.property_type || 'Not listed') + '</span></div>' +",
+    "      '<div class=\"hp-fact\"><strong>Bedrooms</strong><span>' + escapeHtml(row.bedrooms || 'Not listed') + '</span></div>' +",
+    "      '<div class=\"hp-fact\"><strong>Tenure</strong><span>' + escapeHtml(row.tenure || 'Not listed') + '</span></div>';",
+    "",
+    "    if (state.revealed) {",
+    "      els.description.innerHTML = '' +",
+    "        '<div class=\"hp-desc\">' +",
+    "          '<div class=\"hp-desc-title\">Full listing description</div>' +",
+    "          '<p>' + escapeHtml(row.description_full || 'No full description available.') + '</p>' +",
+    "        '</div>';",
+    "    } else {",
+    "      els.description.innerHTML = '' +",
+    "        '<div class=\"hp-desc\">' +",
+    "          '<div class=\"hp-desc-title\">Listing description</div>' +",
+    "          '<p>' + escapeHtml(row.description_redacted || 'No description available.') + '</p>' +",
+    "          '<p class=\"hp-desc-note\">Location and price clues have been removed until after you guess.</p>' +",
+    "        '</div>';",
+    "    }",
+    "  }",
+    "",
+    "  function renderReveal() {",
+    "    if (!state.revealed) {",
+    "      els.reveal.innerHTML = '<div class=\"hp-empty\">Submit a guess to reveal the true asking price, full description, and the hidden location.</div>';",
+    "      return;",
+    "    }",
+    "    const row = currentProperty();",
+    "    const actual = row.price_amount;",
+    "    els.reveal.innerHTML = '' +",
+    "      '<div class=\"hp-panel-title\">Round result</div>' +",
+    "      '<div class=\"hp-result-price\">' + fmtPrice(actual) + '</div>' +",
+    "      '<p><strong>Your guess:</strong> ' + fmtPrice(state.lastGuess) + '</p>' +",
+    "      '<p><strong>Percentage off:</strong> ' + state.lastPctOff + '%</p>' +",
+    "      '<p><strong>Round score:</strong> ' + state.lastScore + ' / 1000</p>' +",
+    "      '<p><strong>Location:</strong> ' + escapeHtml(row.location || 'Not listed') + '</p>' +",
+    "      '<p><strong>Postcode:</strong> ' + escapeHtml(row.postcode || 'Not listed') + '</p>' +",
+    "      '<p><strong>City:</strong> ' + escapeHtml(row.city_group || 'Unknown city') + '</p>' +",
+    "      '<p><strong>Bedrooms / bathrooms:</strong> ' + escapeHtml((row.bedrooms || 'Not listed') + ' bed, ' + (row.bathrooms || 'Not listed') + ' bath') + '</p>' +",
+    "      '<p><strong>Photo set:</strong> ' + currentImages().length + ' images</p>';",
+    "  }",
+    "",
+    "  function renderPriceViz() {",
+    "    if (!state.revealed) {",
+    "      els.priceViz.innerHTML = '<div class=\"hp-empty\">Price comparison appears after you submit a guess.</div>';",
+    "      return;",
+    "    }",
+    "    const poolPrices = state.available.map(index => properties[index].price_amount).filter(Number.isFinite);",
+    "    const min = Math.min.apply(null, poolPrices);",
+    "    const max = Math.max.apply(null, poolPrices);",
+    "    const actual = currentProperty().price_amount;",
+    "    const guess = state.lastGuess;",
+    "    const span = Math.max(max - min, 1);",
+    "    const actualPct = clamp(((actual - min) / span) * 100, 0, 100);",
+    "    const guessPct = clamp(((guess - min) / span) * 100, 0, 100);",
+    "    const med = median(poolPrices);",
+    "    const leaderboard = guessedLeaderboard();",
+    "    const pageSize = 5;",
+    "    const totalPages = Math.max(1, Math.ceil(leaderboard.length / pageSize));",
+    "    state.leaderboardPage = clamp(state.leaderboardPage, 1, totalPages);",
+    "    const start = (state.leaderboardPage - 1) * pageSize;",
+    "    const pageRows = leaderboard.slice(start, start + pageSize);",
+    "    const leaderboardMarkup = leaderboard.length",
+    "      ? '<div class=\"hp-leaderboard\">' +",
+    "          '<div class=\"hp-leaderboard-head\"><strong>Guessed listings</strong><span>Sorted by actual price, high to low</span></div>' +",
+    "          '<div class=\"hp-leaderboard-table\">' +",
+    "            '<div class=\"hp-leaderboard-row header\"><span>Listing</span><span>City</span><span>Actual</span><span>% off</span><span>Score</span></div>' +",
+    "            pageRows.map(function (entry) {",
+    "              const listing = properties[entry.index] || {};",
+    "              const rowClass = entry.index === state.current ? 'hp-leaderboard-row current' : 'hp-leaderboard-row';",
+    "              const label = listing.listing_url",
+    "                ? '<a class=\"hp-leader-link\" href=\"' + escapeHtml(listing.listing_url) + '\" target=\"_blank\" rel=\"noopener noreferrer\">' + escapeHtml(listing.card_title || 'Listing') + '</a>'",
+    "                : '<span>' + escapeHtml(listing.card_title || 'Listing') + '</span>';",
+    "              return '<div class=\"' + rowClass + '\"><span>' + label + '</span><span>' + escapeHtml(listing.city_group || 'Unknown city') + '</span><span>' + fmtPrice(listing.price_amount || 0) + '</span><span>' + entry.pctOff + '%</span><span>' + entry.score + '</span></div>';",
+    "            }).join('') +",
+    "          '</div>' +",
+    "          (totalPages > 1 ? '<div class=\"hp-leader-pagination\"><button type=\"button\" data-action=\"leaderboard-prev\"' + (state.leaderboardPage === 1 ? ' disabled' : '') + '>Previous</button><span>Page ' + state.leaderboardPage + ' of ' + totalPages + '</span><button type=\"button\" data-action=\"leaderboard-next\"' + (state.leaderboardPage === totalPages ? ' disabled' : '') + '>Next</button></div>' : '') +",
+    "        '</div>'",
+    "      : '';",
+    "    els.priceViz.innerHTML = '' +",
+    "      '<div class=\"hp-viz-title\">Price Context</div>' +",
+    "      '<p>This shows where the current listing and your guess sit within the active pool.</p>' +",
+    "      '<div class=\"hp-range\">' +",
+    "        '<div class=\"hp-range-track\">' +",
+    "          '<span class=\"hp-range-marker actual\" style=\"left: calc(' + actualPct + '% - 3px);\"></span>' +",
+    "          '<span class=\"hp-range-marker guess\" style=\"left: calc(' + guessPct + '% - 3px);\"></span>' +",
+    "        '</div>' +",
+    "        '<div class=\"hp-range-scale\"><span>' + fmtPrice(min) + '</span><span>Median ' + fmtPrice(med) + '</span><span>' + fmtPrice(max) + '</span></div>' +",
+    "      '</div>' +",
+    "      '<div class=\"hp-legend\">' +",
+    "        '<span><span class=\"hp-dot\" style=\"background:#ef4836\"></span>Actual listing</span>' +",
+    "        '<span><span class=\"hp-dot\" style=\"background:#11184d\"></span>Your guess</span>' +",
+    "      '</div>' +",
+    "      leaderboardMarkup;",
+    "  }",
+    "",
+    "  function renderGeoViz() {",
+    "    if (!state.revealed) {",
+    "      els.geoViz.innerHTML = '<div class=\"hp-empty\">The location comparison appears after you submit a guess.</div>';",
+    "      return;",
+    "    }",
+    "    const rows = state.available.map(index => properties[index]).filter(row => Number.isFinite(row.longitude) && Number.isFinite(row.latitude));",
+    "    if (!rows.length) {",
+    "      els.geoViz.innerHTML = '<div class=\"hp-empty\">No latitude/longitude values are available in the current pool.</div>';",
+    "      return;",
+    "    }",
+    "    const current = currentProperty();",
+    "    const longs = rows.map(row => row.longitude);",
+    "    const lats = rows.map(row => row.latitude);",
+    "    const minLon = Math.min.apply(null, longs);",
+    "    const maxLon = Math.max.apply(null, longs);",
+    "    const minLat = Math.min.apply(null, lats);",
+    "    const maxLat = Math.max.apply(null, lats);",
+    "    const width = 480;",
+    "    const height = 280;",
+    "    const pad = 28;",
+    "    const xPos = lon => pad + ((lon - minLon) / Math.max(maxLon - minLon, 0.0001)) * (width - pad * 2);",
+    "    const yPos = lat => height - pad - ((lat - minLat) / Math.max(maxLat - minLat, 0.0001)) * (height - pad * 2);",
+    "    const points = rows.map(row => '<circle cx=\"' + xPos(row.longitude).toFixed(1) + '\" cy=\"' + yPos(row.latitude).toFixed(1) + '\" r=\"4\" fill=\"#b7bec8\"></circle>').join('');",
+    "    const currentPoint = Number.isFinite(current.longitude) && Number.isFinite(current.latitude)",
+    "      ? '<circle cx=\"' + xPos(current.longitude).toFixed(1) + '\" cy=\"' + yPos(current.latitude).toFixed(1) + '\" r=\"6\" fill=\"#c44536\"></circle><text x=\"' + (xPos(current.longitude) + 8).toFixed(1) + '\" y=\"' + (yPos(current.latitude) - 8).toFixed(1) + '\" font-size=\"12\" fill=\"#7b241c\">Current</text>'",
+    "      : '';",
+    "    els.geoViz.innerHTML = '' +",
+    "      '<div class=\"hp-viz-title\">Geographic Context</div>' +",
+    "      '<p>The red point shows the current property relative to the rest of the filtered pool.</p>' +",
+    "      '<svg viewBox=\"0 0 480 280\" preserveAspectRatio=\"xMidYMid meet\">' +",
+    "        '<rect x=\"0\" y=\"0\" width=\"480\" height=\"280\" fill=\"#fbfcfe\"></rect>' +",
+    "        '<line x1=\"28\" y1=\"252\" x2=\"452\" y2=\"252\" stroke=\"#b8b8b8\"></line>' +",
+    "        '<line x1=\"28\" y1=\"28\" x2=\"28\" y2=\"252\" stroke=\"#b8b8b8\"></line>' +",
+    "        points + currentPoint +",
+    "      '</svg>';",
+    "  }",
+    "",
+    "  function renderAll() {",
+    "    renderGallery();",
+    "    renderScore();",
+    "    renderListing();",
+    "    renderReveal();",
+    "    renderPriceViz();",
+    "    renderGeoViz();",
+    "    renderLightbox();",
+    "  }",
+    "",
+    "  function handleSubmit() {",
+    "    if (state.revealed) return;",
+    "    const guess = parseGuessValue(els.guess.value);",
+    "    if (!Number.isFinite(guess) || guess <= 0) return;",
+    "    const actual = currentProperty().price_amount;",
+    "    state.lastGuess = guess;",
+    "    state.lastPctOff = percentageOff(guess, actual);",
+    "    state.lastScore = scoreFromPctOff(state.lastPctOff);",
+    "    state.totalScore += state.lastScore;",
+    "    state.history.push({ index: state.current, guess: state.lastGuess, pctOff: state.lastPctOff, score: state.lastScore, order: state.history.length + 1 });",
+    "    state.leaderboardPage = 1;",
+    "    state.revealed = true;",
+    "    if (!state.used.includes(state.current)) state.used.push(state.current);",
+    "    renderAll();",
+    "  }",
+    "",
+    "  function handleNext() {",
+    "    if (!state.revealed) return;",
+    "    const allUsed = state.available.every(index => state.used.includes(index));",
+    "    if (allUsed) {",
+    "      state.used = [];",
+    "      state.round = 1;",
+    "      state.totalScore = 0;",
+    "      state.history = [];",
+    "      state.leaderboardPage = 1;",
+    "    } else {",
+    "      state.round += 1;",
+    "    }",
+    "    const remaining = state.available.filter(index => !state.used.includes(index));",
+    "    state.current = randomChoice(remaining.length ? remaining : state.available);",
+    "    state.currentImage = 0;",
+    "    state.cityHintRevealed = false;",
+    "    state.revealed = false;",
+    "    state.lastGuess = null;",
+    "    state.lastPctOff = null;",
+    "    state.lastScore = null;",
+    "    state.lightboxOpen = false;",
+    "    const poolPrices = state.available.map(index => properties[index].price_amount);",
+    "    els.guess.value = '';",
+    "    renderAll();",
+    "  }",
+    "",
+    "  function buildFilterOptions() {",
+    "    const options = ['All cities'].concat(cityChoices).map(function (label) {",
+    "      return '<option value=\"' + escapeHtml(label) + '\">' + escapeHtml(label) + '</option>';",
+    "    });",
+    "    els.filter.innerHTML = options.join('');",
+    "  }",
+    "",
+    "  mount.addEventListener('click', function (event) {",
+    "    const target = event.target.closest('[data-action], [data-photo-index], #hp-submit, #hp-next, .hp-lightbox');",
+    "    if (!target) return;",
+    "    if (target.id === 'hp-submit') {",
+    "      handleSubmit();",
+    "      return;",
+    "    }",
+    "    if (target.id === 'hp-next') {",
+    "      handleNext();",
+    "      return;",
+    "    }",
+    "    if (target.classList.contains('hp-lightbox') && event.target === target) {",
+    "      closeLightbox();",
+    "      return;",
+    "    }",
+    "    const photoIndex = target.getAttribute('data-photo-index');",
+    "    if (photoIndex !== null) {",
+    "      state.currentImage = Number(photoIndex) || 0;",
+    "      if (target.getAttribute('data-lightbox-thumb') === 'true') {",
+    "        renderLightbox();",
+    "      } else {",
+    "        renderGallery();",
+    "      }",
+    "      return;",
+    "    }",
+    "    const action = target.getAttribute('data-action');",
+    "    if (action === 'toggle-city-hint') {",
+    "      state.cityHintRevealed = !state.cityHintRevealed;",
+    "      renderListing();",
+    "      return;",
+    "    }",
+    "    if (action === 'close-lightbox') {",
+    "      closeLightbox();",
+    "      return;",
+    "    }",
+    "    if (action === 'leaderboard-prev') {",
+    "      state.leaderboardPage = Math.max(1, state.leaderboardPage - 1);",
+    "      renderPriceViz();",
+    "      return;",
+    "    }",
+    "    if (action === 'leaderboard-next') {",
+    "      const totalPages = Math.max(1, Math.ceil(guessedLeaderboard().length / 5));",
+    "      state.leaderboardPage = Math.min(totalPages, state.leaderboardPage + 1);",
+    "      renderPriceViz();",
+    "      return;",
+    "    }",
+    "    const images = currentImages();",
+    "    if (!images.length) return;",
+    "    if (action === 'open-lightbox') {",
+    "      openLightbox();",
+    "      return;",
+    "    }",
+    "    if (action === 'gallery-prev') {",
+    "      state.currentImage = (state.currentImage - 1 + images.length) % images.length;",
+    "      state.lightboxOpen ? renderLightbox() : renderGallery();",
+    "    } else if (action === 'gallery-next') {",
+    "      state.currentImage = (state.currentImage + 1) % images.length;",
+    "      state.lightboxOpen ? renderLightbox() : renderGallery();",
+    "    } else if (action === 'lightbox-prev') {",
+    "      state.currentImage = (state.currentImage - 1 + images.length) % images.length;",
+    "      renderLightbox();",
+    "    } else if (action === 'lightbox-next') {",
+    "      state.currentImage = (state.currentImage + 1) % images.length;",
+    "      renderLightbox();",
+    "    }",
+    "  });",
+    "",
+    "  els.filter.addEventListener('change', function () {",
+    "    state.filter = els.filter.value;",
+    "    resetForFilter();",
+    "  });",
+    "",
+    "  els.guess.addEventListener('keydown', function (event) {",
+    "    if (event.key === 'Enter') {",
+    "      handleSubmit();",
+    "    }",
+    "  });",
+    "",
+    "  els.guess.addEventListener('input', function () {",
+    "    const formatted = formatNumberInput(els.guess.value);",
+    "    if (els.guess.value !== formatted) {",
+    "      els.guess.value = formatted;",
+    "    }",
+    "  });",
+    "",
+    "  document.getElementById('hp-lightbox-close').addEventListener('click', function (event) {",
+    "    event.preventDefault();",
+    "    event.stopPropagation();",
+    "    closeLightbox();",
+    "  });",
+    "",
+    "  els.lightbox.addEventListener('click', function (event) {",
+    "    if (event.target === els.lightbox) {",
+    "      closeLightbox();",
+    "    }",
+    "  });",
+    "",
+    "  document.addEventListener('keydown', function (event) {",
+    "    if (!state.lightboxOpen) return;",
+    "    if (event.key === 'Escape') {",
+    "      closeLightbox();",
+    "    } else if (event.key === 'ArrowLeft') {",
+    "      const images = currentImages();",
+    "      if (!images.length) return;",
+    "      state.currentImage = (state.currentImage - 1 + images.length) % images.length;",
+    "      renderLightbox();",
+    "    } else if (event.key === 'ArrowRight') {",
+    "      const images = currentImages();",
+    "      if (!images.length) return;",
+    "      state.currentImage = (state.currentImage + 1) % images.length;",
+    "      renderLightbox();",
+    "    }",
+    "  });",
+    "",
+    "  buildFilterOptions();",
+    "  resetForFilter();",
+    "})();"
+  ),
+  collapse = "\n"
+)
+```
+
+```{r game, echo=FALSE}
+browsable(
+  tagList(
+    tags$style(HTML(game_css)),
+    tags$div(
+      id = "house-game-root",
+      class = "hp-game",
+      tags$div(
+        class = "hp-shell",
+        tags$div(
+          class = "hp-topline",
+          tags$div(
+            class = "hp-top-score",
+            tags$div(id = "hp-score")
+          )
+        ),
+        tags$div(
+          class = "hp-gallery-card",
+          tags$div(id = "hp-gallery")
+        ),
+        tags$div(
+          class = "hp-portal",
+          tags$div(
+            class = "hp-main-column",
+            tags$div(
+              class = "hp-listing-card",
+              tags$div(id = "hp-headline"),
+              tags$div(
+                class = "hp-guess-block",
+                tags$label(class = "hp-guess-label", `for` = "hp-guess", "What should the asking price be?"),
+                tags$div(
+                  class = "hp-price-entry",
+                  tags$span("£"),
+                  tags$input(
+                    id = "hp-guess",
+                    type = "text",
+                    inputmode = "numeric",
+                    autocomplete = "off",
+                    value = "",
+                    placeholder = "Guess here"
+                  )
+                ),
+                tags$p(
+                  class = "hp-guess-help",
+                  ""
+                )
+              ),
+              tags$div(class = "hp-facts", id = "hp-facts")
+            )
+          ),
+          tags$div(
+            class = "hp-side-column",
+            tags$div(
+              class = "hp-agent-card",
+              tags$div(
+                class = "hp-control",
+                tags$label(`for` = "hp-city-filter", "City filter"),
+                tags$select(id = "hp-city-filter")
+              ),
+              tags$div(
+                class = "hp-actions",
+                tags$button(id = "hp-submit", class = "hp-submit", "Submit guess"),
+                tags$button(id = "hp-next", class = "hp-next", "Next property")
+              )
+            ),
+            tags$div(
+              class = "hp-reveal-card",
+              tags$div(id = "hp-reveal")
+            )
+          )
+        ),
+        tags$div(
+          class = "hp-desc-card",
+          tags$div(id = "hp-description")
+        ),
+        tags$div(
+          class = "hp-viz-grid",
+          tags$div(class = "hp-viz", id = "hp-price-viz"),
+          tags$div(class = "hp-viz", id = "hp-geo-viz")
+        ),
+        tags$div(
+          id = "hp-lightbox",
+          class = "hp-lightbox",
+          tags$div(
+            class = "hp-lightbox-frame",
+            tags$button(id = "hp-lightbox-close", class = "hp-lightbox-close", type = "button", `data-action` = "close-lightbox", "×"),
+            tags$div(
+              class = "hp-lightbox-stage",
+              tags$button(class = "hp-lightbox-nav prev", type = "button", `data-action` = "lightbox-prev", "‹"),
+              tags$img(id = "hp-lightbox-image", alt = "Expanded property image"),
+              tags$button(class = "hp-lightbox-nav next", type = "button", `data-action` = "lightbox-next", "›")
+            ),
+            tags$div(
+              class = "hp-lightbox-meta",
+              tags$strong("Expanded photo view"),
+              tags$span(id = "hp-lightbox-counter")
+            ),
+            tags$div(id = "hp-lightbox-strip", class = "hp-lightbox-strip")
+          )
+        )
+      )
+    ),
+    tags$script(id = "house-game-data", type = "application/json", HTML(payload_json)),
+    tags$script(HTML(game_js))
+  )
+)
+```

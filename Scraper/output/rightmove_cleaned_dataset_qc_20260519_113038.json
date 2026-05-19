@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-05-19T11:30:38.670664",
+  "input_files": [
+    "rightmove_rental_enriched_results_20260519_111453.json"
+  ],
+  "rows_input": 40,
+  "rows_output": 40,
+  "duplicates_removed": 0,
+  "market_counts": {
+    "rent": 40
+  },
+  "field_coverage": {
+    "listing_id": {
+      "count": 40,
+      "fraction": 1.0
+    },
+    "listing_url": {
+      "count": 40,
+      "fraction": 1.0
+    },
+    "location": {
+      "count": 40,
+      "fraction": 1.0
+    },
+    "price_amount": {
+      "count": 40,
+      "fraction": 1.0
+    },
+    "price_frequency": {
+      "count": 40,
+      "fraction": 1.0
+    },
+    "property_type": {
+      "count": 40,
+      "fraction": 1.0
+    },
+    "bedrooms": {
+      "count": 40,
+      "fraction": 1.0
+    },
+    "bathrooms": {
+      "count": 38,
+      "fraction": 0.95
+    },
+    "postcode": {
+      "count": 1,
+      "fraction": 0.025
+    },
+    "latitude": {
+      "count": 38,
+      "fraction": 0.95
+    },
+    "longitude": {
+      "count": 38,
+      "fraction": 0.95
+    },
+    "epc_rating": {
+      "count": 4,
+      "fraction": 0.1
+    },
+    "investment_opportunity": {
+      "count": 5,
+      "fraction": 0.125
+    },
+    "luxury": {
+      "count": 13,
+      "fraction": 0.325
+    }
+  }
+}

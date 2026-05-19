@@ -1,0 +1,43 @@
+{
+  "generated_at": "2026-05-19T11:06:34.603419",
+  "source_dataset": "rightmove_rental_enriched_results_20260325_032128.json",
+  "source_meta": {
+    "generated_at": "2026-03-25T03:21:28.533538",
+    "source_search_json": "Scraper/output/rightmove_rental_search_results_20260325_030058.json",
+    "run_dir": "/Users/samwinter/Documents/Shared/University/Geography/Year 2/Digital Data Cap/Final Project/Scraper/output/rental_flags_test_03",
+    "results_count": 10,
+    "completed_count": 10,
+    "block_images": true,
+    "page_timeout": 12.0,
+    "settle_seconds": 0.75
+  },
+  "boundary_name": "London Euro Region",
+  "rows_input": 10,
+  "rows_with_coordinates": 10,
+  "rows_missing_coordinates": 0,
+  "rows_inside_london": 10,
+  "rows_outside_london": 0,
+  "market_counts": {
+    "rent": 10
+  },
+  "borough_counts": {
+    "Hammersmith and Fulham": 10
+  },
+  "price_summary": {
+    "count": 10,
+    "median": 2850.0,
+    "mean": 3068.4,
+    "min": 2189.0,
+    "max": 4199.0
+  },
+  "borough_summary": [
+    {
+      "london_borough": "Hammersmith and Fulham",
+      "count": 10,
+      "median_price": 2850.0,
+      "mean_price": 3068.4,
+      "min_price": 2189.0,
+      "max_price": 4199.0
+    }
+  ]
+}
