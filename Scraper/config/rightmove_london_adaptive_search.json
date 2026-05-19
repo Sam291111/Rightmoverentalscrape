@@ -1,0 +1,3583 @@
+{
+  "generated_at": "2026-05-19T16:43:34.210183",
+  "sources": {
+    "boroughs_path": "/Users/samwinter/Documents/Shared/University/Geography/Year 2/Digital Data Cap/Final Project/London Boundary/statistical-gis-boundaries-london/ESRI/London_Borough_Excluding_MHW.shp",
+    "seed_links_file": "/Users/samwinter/Documents/Shared/University/Geography/Year 2/Digital Data Cap/Final Project/Scraper/Borough_Links.txt",
+    "postcode_csv": "/Users/samwinter/Documents/Shared/University/Geography/Year 2/Digital Data Cap/Final Project/london_postcodes-ons-postcodes-directory-feb22.csv",
+    "outcode_mappings_json": "/Users/samwinter/Documents/Shared/University/Geography/Year 2/Digital Data Cap/Final Project/Rightmove outcode mappings.json"
+  },
+  "borough_count": 33,
+  "boroughs_with_seed_links": 33,
+  "boroughs": [
+    {
+      "name": "Barking and Dagenham",
+      "normalised_name": "barking and dagenham",
+      "borough_code": "E09000002",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61400&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Barking-And-Dagenham.html",
+      "seed_location_identifier": "REGION^61400",
+      "seed_source_name": "Barking and Dagenham",
+      "outcodes": [
+        {
+          "outcode": "IG11",
+          "code": "1148",
+          "location_code": "1148",
+          "postcode_count": 927
+        },
+        {
+          "outcode": "RM10",
+          "code": "2188",
+          "location_code": "2188",
+          "postcode_count": 584
+        },
+        {
+          "outcode": "RM8",
+          "code": "2206",
+          "location_code": "2206",
+          "postcode_count": 571
+        },
+        {
+          "outcode": "RM9",
+          "code": "2207",
+          "location_code": "2207",
+          "postcode_count": 545
+        },
+        {
+          "outcode": "RM6",
+          "code": "2204",
+          "location_code": "2204",
+          "postcode_count": 263
+        },
+        {
+          "outcode": "RM7",
+          "code": "2205",
+          "location_code": "2205",
+          "postcode_count": 72
+        },
+        {
+          "outcode": "RM5",
+          "code": "2202",
+          "location_code": "2202",
+          "postcode_count": 8
+        }
+      ]
+    },
+    {
+      "name": "Barnet",
+      "normalised_name": "barnet",
+      "borough_code": "E09000003",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93929&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Barnet.html",
+      "seed_location_identifier": "REGION^93929",
+      "seed_source_name": "Barnet",
+      "outcodes": [
+        {
+          "outcode": "EN5",
+          "code": "855",
+          "location_code": "855",
+          "postcode_count": 1042
+        },
+        {
+          "outcode": "HA8",
+          "code": "1061",
+          "location_code": "1061",
+          "postcode_count": 951
+        },
+        {
+          "outcode": "NW11",
+          "code": "1857",
+          "location_code": "1857",
+          "postcode_count": 853
+        },
+        {
+          "outcode": "NW7",
+          "code": "1863",
+          "location_code": "1863",
+          "postcode_count": 797
+        },
+        {
+          "outcode": "NW9",
+          "code": "1865",
+          "location_code": "1865",
+          "postcode_count": 789
+        },
+        {
+          "outcode": "NW4",
+          "code": "1860",
+          "location_code": "1860",
+          "postcode_count": 748
+        },
+        {
+          "outcode": "N12",
+          "code": "1669",
+          "location_code": "1669",
+          "postcode_count": 710
+        },
+        {
+          "outcode": "N3",
+          "code": "1681",
+          "location_code": "1681",
+          "postcode_count": 648
+        },
+        {
+          "outcode": "N20",
+          "code": "1678",
+          "location_code": "1678",
+          "postcode_count": 534
+        },
+        {
+          "outcode": "N2",
+          "code": "1677",
+          "location_code": "1677",
+          "postcode_count": 455
+        },
+        {
+          "outcode": "NW2",
+          "code": "1858",
+          "location_code": "1858",
+          "postcode_count": 423
+        },
+        {
+          "outcode": "EN4",
+          "code": "854",
+          "location_code": "854",
+          "postcode_count": 390
+        },
+        {
+          "outcode": "N11",
+          "code": "1668",
+          "location_code": "1668",
+          "postcode_count": 294
+        },
+        {
+          "outcode": "N14",
+          "code": "1671",
+          "location_code": "1671",
+          "postcode_count": 137
+        },
+        {
+          "outcode": "N10",
+          "code": "1667",
+          "location_code": "1667",
+          "postcode_count": 110
+        },
+        {
+          "outcode": "NW3",
+          "code": "1859",
+          "location_code": "1859",
+          "postcode_count": 27
+        },
+        {
+          "outcode": "HA7",
+          "code": "1060",
+          "location_code": "1060",
+          "postcode_count": 5
+        },
+        {
+          "outcode": "WD6",
+          "code": "2812",
+          "location_code": "2812",
+          "postcode_count": 2
+        },
+        {
+          "outcode": "N6",
+          "code": "1684",
+          "location_code": "1684",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Bexley",
+      "normalised_name": "bexley",
+      "borough_code": "E09000004",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93932&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Bexley-93932.html",
+      "seed_location_identifier": "REGION^93932",
+      "seed_source_name": "Bexley",
+      "outcodes": [
+        {
+          "outcode": "DA7",
+          "code": "604",
+          "location_code": "604",
+          "postcode_count": 688
+        },
+        {
+          "outcode": "DA8",
+          "code": "605",
+          "location_code": "605",
+          "postcode_count": 641
+        },
+        {
+          "outcode": "DA16",
+          "code": "596",
+          "location_code": "596",
+          "postcode_count": 565
+        },
+        {
+          "outcode": "DA15",
+          "code": "595",
+          "location_code": "595",
+          "postcode_count": 494
+        },
+        {
+          "outcode": "DA14",
+          "code": "594",
+          "location_code": "594",
+          "postcode_count": 493
+        },
+        {
+          "outcode": "DA5",
+          "code": "602",
+          "location_code": "602",
+          "postcode_count": 358
+        },
+        {
+          "outcode": "DA17",
+          "code": "597",
+          "location_code": "597",
+          "postcode_count": 340
+        },
+        {
+          "outcode": "DA1",
+          "code": "589",
+          "location_code": "589",
+          "postcode_count": 266
+        },
+        {
+          "outcode": "DA6",
+          "code": "603",
+          "location_code": "603",
+          "postcode_count": 249
+        },
+        {
+          "outcode": "SE2",
+          "code": "2320",
+          "location_code": "2320",
+          "postcode_count": 136
+        },
+        {
+          "outcode": "SE28",
+          "code": "2329",
+          "location_code": "2329",
+          "postcode_count": 82
+        },
+        {
+          "outcode": "DA18",
+          "code": "598",
+          "location_code": "598",
+          "postcode_count": 69
+        },
+        {
+          "outcode": "SE9",
+          "code": "2336",
+          "location_code": "2336",
+          "postcode_count": 33
+        }
+      ]
+    },
+    {
+      "name": "Brent",
+      "normalised_name": "brent",
+      "borough_code": "E09000005",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93935&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Brent.html",
+      "seed_location_identifier": "REGION^93935",
+      "seed_source_name": "Brent",
+      "outcodes": [
+        {
+          "outcode": "NW10",
+          "code": "1856",
+          "location_code": "1856",
+          "postcode_count": 1584
+        },
+        {
+          "outcode": "HA9",
+          "code": "1062",
+          "location_code": "1062",
+          "postcode_count": 973
+        },
+        {
+          "outcode": "HA0",
+          "code": "1053",
+          "location_code": "1053",
+          "postcode_count": 825
+        },
+        {
+          "outcode": "NW2",
+          "code": "1858",
+          "location_code": "1858",
+          "postcode_count": 792
+        },
+        {
+          "outcode": "NW9",
+          "code": "1865",
+          "location_code": "1865",
+          "postcode_count": 644
+        },
+        {
+          "outcode": "NW6",
+          "code": "1862",
+          "location_code": "1862",
+          "postcode_count": 557
+        },
+        {
+          "outcode": "HA3",
+          "code": "1056",
+          "location_code": "1056",
+          "postcode_count": 287
+        },
+        {
+          "outcode": "HA8",
+          "code": "1061",
+          "location_code": "1061",
+          "postcode_count": 62
+        },
+        {
+          "outcode": "HA1",
+          "code": "1054",
+          "location_code": "1054",
+          "postcode_count": 43
+        },
+        {
+          "outcode": "NW8",
+          "code": "1864",
+          "location_code": "1864",
+          "postcode_count": 28
+        },
+        {
+          "outcode": "W10",
+          "code": "2744",
+          "location_code": "2744",
+          "postcode_count": 16
+        },
+        {
+          "outcode": "N8",
+          "code": "1686",
+          "location_code": "1686",
+          "postcode_count": 12
+        },
+        {
+          "outcode": "HA7",
+          "code": "1060",
+          "location_code": "1060",
+          "postcode_count": 5
+        },
+        {
+          "outcode": "W9",
+          "code": "2769",
+          "location_code": "2769",
+          "postcode_count": 3
+        }
+      ]
+    },
+    {
+      "name": "Bromley",
+      "normalised_name": "bromley",
+      "borough_code": "E09000006",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93938&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Bromley-93938.html",
+      "seed_location_identifier": "REGION^93938",
+      "seed_source_name": "Bromley",
+      "outcodes": [
+        {
+          "outcode": "BR3",
+          "code": "253",
+          "location_code": "253",
+          "postcode_count": 1145
+        },
+        {
+          "outcode": "BR6",
+          "code": "256",
+          "location_code": "256",
+          "postcode_count": 1120
+        },
+        {
+          "outcode": "BR2",
+          "code": "252",
+          "location_code": "252",
+          "postcode_count": 1006
+        },
+        {
+          "outcode": "BR1",
+          "code": "251",
+          "location_code": "251",
+          "postcode_count": 997
+        },
+        {
+          "outcode": "BR5",
+          "code": "255",
+          "location_code": "255",
+          "postcode_count": 935
+        },
+        {
+          "outcode": "SE20",
+          "code": "2321",
+          "location_code": "2321",
+          "postcode_count": 498
+        },
+        {
+          "outcode": "BR7",
+          "code": "257",
+          "location_code": "257",
+          "postcode_count": 460
+        },
+        {
+          "outcode": "BR4",
+          "code": "254",
+          "location_code": "254",
+          "postcode_count": 375
+        },
+        {
+          "outcode": "TN16",
+          "code": "2608",
+          "location_code": "2608",
+          "postcode_count": 302
+        },
+        {
+          "outcode": "SE9",
+          "code": "2336",
+          "location_code": "2336",
+          "postcode_count": 160
+        },
+        {
+          "outcode": "SE26",
+          "code": "2327",
+          "location_code": "2327",
+          "postcode_count": 124
+        },
+        {
+          "outcode": "SE19",
+          "code": "2319",
+          "location_code": "2319",
+          "postcode_count": 79
+        },
+        {
+          "outcode": "TN14",
+          "code": "2606",
+          "location_code": "2606",
+          "postcode_count": 28
+        },
+        {
+          "outcode": "DA14",
+          "code": "594",
+          "location_code": "594",
+          "postcode_count": 18
+        },
+        {
+          "outcode": "BR8",
+          "code": "258",
+          "location_code": "258",
+          "postcode_count": 10
+        },
+        {
+          "outcode": "CR6",
+          "code": "528",
+          "location_code": "528",
+          "postcode_count": 2
+        },
+        {
+          "outcode": "SE12",
+          "code": "2312",
+          "location_code": "2312",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Camden",
+      "normalised_name": "camden",
+      "borough_code": "E09000007",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93941&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Camden-93941.html",
+      "seed_location_identifier": "REGION^93941",
+      "seed_source_name": "Camden",
+      "outcodes": [
+        {
+          "outcode": "NW1",
+          "code": "1855",
+          "location_code": "1855",
+          "postcode_count": 1310
+        },
+        {
+          "outcode": "NW3",
+          "code": "1859",
+          "location_code": "1859",
+          "postcode_count": 1309
+        },
+        {
+          "outcode": "NW5",
+          "code": "1861",
+          "location_code": "1861",
+          "postcode_count": 833
+        },
+        {
+          "outcode": "NW6",
+          "code": "1862",
+          "location_code": "1862",
+          "postcode_count": 695
+        },
+        {
+          "outcode": "W1T",
+          "code": "2759",
+          "location_code": "2759",
+          "postcode_count": 685
+        },
+        {
+          "outcode": "WC1H",
+          "code": "2791",
+          "location_code": "2791",
+          "postcode_count": 303
+        },
+        {
+          "outcode": "WC1N",
+          "code": "2792",
+          "location_code": "2792",
+          "postcode_count": 272
+        },
+        {
+          "outcode": "WC1X",
+          "code": "2795",
+          "location_code": "2795",
+          "postcode_count": 215
+        },
+        {
+          "outcode": "WC2H",
+          "code": "2799",
+          "location_code": "2799",
+          "postcode_count": 178
+        },
+        {
+          "outcode": "WC1B",
+          "code": "2789",
+          "location_code": "2789",
+          "postcode_count": 163
+        },
+        {
+          "outcode": "EC1N",
+          "code": "767",
+          "location_code": "767",
+          "postcode_count": 148
+        },
+        {
+          "outcode": "N6",
+          "code": "1684",
+          "location_code": "1684",
+          "postcode_count": 118
+        },
+        {
+          "outcode": "WC1E",
+          "code": "2790",
+          "location_code": "2790",
+          "postcode_count": 109
+        },
+        {
+          "outcode": "NW8",
+          "code": "1864",
+          "location_code": "1864",
+          "postcode_count": 108
+        },
+        {
+          "outcode": "WC1A",
+          "code": "2788",
+          "location_code": "2788",
+          "postcode_count": 100
+        },
+        {
+          "outcode": "WC2B",
+          "code": "2797",
+          "location_code": "2797",
+          "postcode_count": 95
+        },
+        {
+          "outcode": "NW2",
+          "code": "1858",
+          "location_code": "1858",
+          "postcode_count": 92
+        },
+        {
+          "outcode": "WC1R",
+          "code": "2793",
+          "location_code": "2793",
+          "postcode_count": 88
+        },
+        {
+          "outcode": "WC1V",
+          "code": "2794",
+          "location_code": "2794",
+          "postcode_count": 83
+        },
+        {
+          "outcode": "WC2A",
+          "code": "2796",
+          "location_code": "2796",
+          "postcode_count": 66
+        },
+        {
+          "outcode": "EC1R",
+          "code": "769",
+          "location_code": "769",
+          "postcode_count": 47
+        },
+        {
+          "outcode": "N19",
+          "code": "1676",
+          "location_code": "1676",
+          "postcode_count": 31
+        },
+        {
+          "outcode": "N7",
+          "code": "1685",
+          "location_code": "1685",
+          "postcode_count": 17
+        },
+        {
+          "outcode": "EC1M",
+          "code": "766",
+          "location_code": "766",
+          "postcode_count": 9
+        },
+        {
+          "outcode": "W9",
+          "code": "2769",
+          "location_code": "2769",
+          "postcode_count": 5
+        },
+        {
+          "outcode": "N1",
+          "code": "1666",
+          "location_code": "1666",
+          "postcode_count": 4
+        }
+      ]
+    },
+    {
+      "name": "City of London",
+      "normalised_name": "city of london",
+      "borough_code": "E09000001",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61224&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=City-Of-London.html",
+      "seed_location_identifier": "REGION^61224",
+      "seed_source_name": "City of London",
+      "outcodes": [
+        {
+          "outcode": "EC2M",
+          "code": "773",
+          "location_code": "773",
+          "postcode_count": 148
+        },
+        {
+          "outcode": "EC4Y",
+          "code": "791",
+          "location_code": "791",
+          "postcode_count": 130
+        },
+        {
+          "outcode": "EC4V",
+          "code": "790",
+          "location_code": "790",
+          "postcode_count": 119
+        },
+        {
+          "outcode": "EC4A",
+          "code": "785",
+          "location_code": "785",
+          "postcode_count": 110
+        },
+        {
+          "outcode": "EC1A",
+          "code": "765",
+          "location_code": "765",
+          "postcode_count": 109
+        },
+        {
+          "outcode": "EC2V",
+          "code": "777",
+          "location_code": "777",
+          "postcode_count": 105
+        },
+        {
+          "outcode": "EC4M",
+          "code": "786",
+          "location_code": "786",
+          "postcode_count": 93
+        },
+        {
+          "outcode": "EC2Y",
+          "code": "778",
+          "location_code": "778",
+          "postcode_count": 85
+        },
+        {
+          "outcode": "EC3R",
+          "code": "783",
+          "location_code": "783",
+          "postcode_count": 85
+        },
+        {
+          "outcode": "EC3V",
+          "code": "784",
+          "location_code": "784",
+          "postcode_count": 83
+        },
+        {
+          "outcode": "EC3M",
+          "code": "780",
+          "location_code": "780",
+          "postcode_count": 82
+        },
+        {
+          "outcode": "EC3N",
+          "code": "781",
+          "location_code": "781",
+          "postcode_count": 79
+        },
+        {
+          "outcode": "EC3A",
+          "code": "779",
+          "location_code": "779",
+          "postcode_count": 75
+        },
+        {
+          "outcode": "EC2R",
+          "code": "776",
+          "location_code": "776",
+          "postcode_count": 71
+        },
+        {
+          "outcode": "EC4N",
+          "code": "787",
+          "location_code": "787",
+          "postcode_count": 69
+        },
+        {
+          "outcode": "EC4R",
+          "code": "789",
+          "location_code": "789",
+          "postcode_count": 60
+        },
+        {
+          "outcode": "EC2N",
+          "code": "774",
+          "location_code": "774",
+          "postcode_count": 53
+        },
+        {
+          "outcode": "E1",
+          "code": "744",
+          "location_code": "744",
+          "postcode_count": 40
+        },
+        {
+          "outcode": "EC1Y",
+          "code": "771",
+          "location_code": "771",
+          "postcode_count": 23
+        },
+        {
+          "outcode": "WC2A",
+          "code": "2796",
+          "location_code": "2796",
+          "postcode_count": 22
+        },
+        {
+          "outcode": "EC1N",
+          "code": "767",
+          "location_code": "767",
+          "postcode_count": 16
+        },
+        {
+          "outcode": "EC2A",
+          "code": "772",
+          "location_code": "772",
+          "postcode_count": 16
+        },
+        {
+          "outcode": "WC1V",
+          "code": "2794",
+          "location_code": "2794",
+          "postcode_count": 13
+        },
+        {
+          "outcode": "EC1M",
+          "code": "766",
+          "location_code": "766",
+          "postcode_count": 6
+        },
+        {
+          "outcode": "EC2P",
+          "code": "775",
+          "location_code": "775",
+          "postcode_count": 4
+        },
+        {
+          "outcode": "EC3P",
+          "code": "782",
+          "location_code": "782",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Croydon",
+      "normalised_name": "croydon",
+      "borough_code": "E09000008",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93944&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Croydon-93944.html",
+      "seed_location_identifier": "REGION^93944",
+      "seed_source_name": "Croydon",
+      "outcodes": [
+        {
+          "outcode": "CR0",
+          "code": "523",
+          "location_code": "523",
+          "postcode_count": 2623
+        },
+        {
+          "outcode": "CR2",
+          "code": "524",
+          "location_code": "524",
+          "postcode_count": 988
+        },
+        {
+          "outcode": "CR8",
+          "code": "530",
+          "location_code": "530",
+          "postcode_count": 735
+        },
+        {
+          "outcode": "SE25",
+          "code": "2326",
+          "location_code": "2326",
+          "postcode_count": 637
+        },
+        {
+          "outcode": "CR7",
+          "code": "529",
+          "location_code": "529",
+          "postcode_count": 598
+        },
+        {
+          "outcode": "CR5",
+          "code": "527",
+          "location_code": "527",
+          "postcode_count": 528
+        },
+        {
+          "outcode": "SE19",
+          "code": "2319",
+          "location_code": "2319",
+          "postcode_count": 358
+        },
+        {
+          "outcode": "SW16",
+          "code": "2502",
+          "location_code": "2502",
+          "postcode_count": 304
+        },
+        {
+          "outcode": "CR9",
+          "code": "531",
+          "location_code": "531",
+          "postcode_count": 153
+        },
+        {
+          "outcode": "CR3",
+          "code": "525",
+          "location_code": "525",
+          "postcode_count": 22
+        },
+        {
+          "outcode": "CR6",
+          "code": "528",
+          "location_code": "528",
+          "postcode_count": 7
+        },
+        {
+          "outcode": "BR3",
+          "code": "253",
+          "location_code": "253",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "CR4",
+          "code": "526",
+          "location_code": "526",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Ealing",
+      "normalised_name": "ealing",
+      "borough_code": "E09000009",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93947&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Ealing-93947.html",
+      "seed_location_identifier": "REGION^93947",
+      "seed_source_name": "Ealing",
+      "outcodes": [
+        {
+          "outcode": "W3",
+          "code": "2763",
+          "location_code": "2763",
+          "postcode_count": 1057
+        },
+        {
+          "outcode": "W5",
+          "code": "2765",
+          "location_code": "2765",
+          "postcode_count": 1016
+        },
+        {
+          "outcode": "UB6",
+          "code": "2740",
+          "location_code": "2740",
+          "postcode_count": 848
+        },
+        {
+          "outcode": "UB5",
+          "code": "2739",
+          "location_code": "2739",
+          "postcode_count": 786
+        },
+        {
+          "outcode": "W13",
+          "code": "2747",
+          "location_code": "2747",
+          "postcode_count": 601
+        },
+        {
+          "outcode": "UB1",
+          "code": "2733",
+          "location_code": "2733",
+          "postcode_count": 592
+        },
+        {
+          "outcode": "W7",
+          "code": "2767",
+          "location_code": "2767",
+          "postcode_count": 506
+        },
+        {
+          "outcode": "UB2",
+          "code": "2736",
+          "location_code": "2736",
+          "postcode_count": 422
+        },
+        {
+          "outcode": "W4",
+          "code": "2764",
+          "location_code": "2764",
+          "postcode_count": 244
+        },
+        {
+          "outcode": "NW10",
+          "code": "1856",
+          "location_code": "1856",
+          "postcode_count": 179
+        },
+        {
+          "outcode": "W11",
+          "code": "2745",
+          "location_code": "2745",
+          "postcode_count": 55
+        },
+        {
+          "outcode": "W2",
+          "code": "2762",
+          "location_code": "2762",
+          "postcode_count": 51
+        },
+        {
+          "outcode": "W12",
+          "code": "2746",
+          "location_code": "2746",
+          "postcode_count": 50
+        },
+        {
+          "outcode": "HA0",
+          "code": "1053",
+          "location_code": "1053",
+          "postcode_count": 23
+        },
+        {
+          "outcode": "W10",
+          "code": "2744",
+          "location_code": "2744",
+          "postcode_count": 20
+        },
+        {
+          "outcode": "TW8",
+          "code": "2731",
+          "location_code": "2731",
+          "postcode_count": 3
+        }
+      ]
+    },
+    {
+      "name": "Enfield",
+      "normalised_name": "enfield",
+      "borough_code": "E09000010",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93950&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Enfield.html",
+      "seed_location_identifier": "REGION^93950",
+      "seed_source_name": "Enfield",
+      "outcodes": [
+        {
+          "outcode": "EN3",
+          "code": "853",
+          "location_code": "853",
+          "postcode_count": 998
+        },
+        {
+          "outcode": "EN1",
+          "code": "849",
+          "location_code": "849",
+          "postcode_count": 985
+        },
+        {
+          "outcode": "N9",
+          "code": "1687",
+          "location_code": "1687",
+          "postcode_count": 876
+        },
+        {
+          "outcode": "EN2",
+          "code": "852",
+          "location_code": "852",
+          "postcode_count": 825
+        },
+        {
+          "outcode": "N21",
+          "code": "1679",
+          "location_code": "1679",
+          "postcode_count": 570
+        },
+        {
+          "outcode": "N14",
+          "code": "1671",
+          "location_code": "1671",
+          "postcode_count": 551
+        },
+        {
+          "outcode": "N18",
+          "code": "1675",
+          "location_code": "1675",
+          "postcode_count": 530
+        },
+        {
+          "outcode": "N13",
+          "code": "1670",
+          "location_code": "1670",
+          "postcode_count": 529
+        },
+        {
+          "outcode": "N11",
+          "code": "1668",
+          "location_code": "1668",
+          "postcode_count": 193
+        },
+        {
+          "outcode": "EN4",
+          "code": "854",
+          "location_code": "854",
+          "postcode_count": 166
+        },
+        {
+          "outcode": "EN8",
+          "code": "858",
+          "location_code": "858",
+          "postcode_count": 30
+        },
+        {
+          "outcode": "N22",
+          "code": "1680",
+          "location_code": "1680",
+          "postcode_count": 18
+        },
+        {
+          "outcode": "EN6",
+          "code": "856",
+          "location_code": "856",
+          "postcode_count": 2
+        },
+        {
+          "outcode": "EN7",
+          "code": "857",
+          "location_code": "857",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "EN9",
+          "code": "859",
+          "location_code": "859",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "N17",
+          "code": "1674",
+          "location_code": "1674",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Greenwich",
+      "normalised_name": "greenwich",
+      "borough_code": "E09000011",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61226&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Greenwich-61226.html",
+      "seed_location_identifier": "REGION^61226",
+      "seed_source_name": "Greenwich",
+      "outcodes": [
+        {
+          "outcode": "SE18",
+          "code": "2318",
+          "location_code": "2318",
+          "postcode_count": 1421
+        },
+        {
+          "outcode": "SE9",
+          "code": "2336",
+          "location_code": "2336",
+          "postcode_count": 985
+        },
+        {
+          "outcode": "SE10",
+          "code": "2310",
+          "location_code": "2310",
+          "postcode_count": 758
+        },
+        {
+          "outcode": "SE3",
+          "code": "2330",
+          "location_code": "2330",
+          "postcode_count": 588
+        },
+        {
+          "outcode": "SE7",
+          "code": "2334",
+          "location_code": "2334",
+          "postcode_count": 425
+        },
+        {
+          "outcode": "SE28",
+          "code": "2329",
+          "location_code": "2329",
+          "postcode_count": 343
+        },
+        {
+          "outcode": "SE2",
+          "code": "2320",
+          "location_code": "2320",
+          "postcode_count": 323
+        },
+        {
+          "outcode": "SE12",
+          "code": "2312",
+          "location_code": "2312",
+          "postcode_count": 126
+        },
+        {
+          "outcode": "SE8",
+          "code": "2335",
+          "location_code": "2335",
+          "postcode_count": 84
+        },
+        {
+          "outcode": "SE13",
+          "code": "2313",
+          "location_code": "2313",
+          "postcode_count": 32
+        },
+        {
+          "outcode": "DA15",
+          "code": "595",
+          "location_code": "595",
+          "postcode_count": 14
+        },
+        {
+          "outcode": "BR7",
+          "code": "257",
+          "location_code": "257",
+          "postcode_count": 6
+        },
+        {
+          "outcode": "DA16",
+          "code": "596",
+          "location_code": "596",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Hackney",
+      "normalised_name": "hackney",
+      "borough_code": "E09000012",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93953&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Hackney-93953.html",
+      "seed_location_identifier": "REGION^93953",
+      "seed_source_name": "Hackney",
+      "outcodes": [
+        {
+          "outcode": "N16",
+          "code": "1673",
+          "location_code": "1673",
+          "postcode_count": 1095
+        },
+        {
+          "outcode": "E8",
+          "code": "762",
+          "location_code": "762",
+          "postcode_count": 712
+        },
+        {
+          "outcode": "N1",
+          "code": "1666",
+          "location_code": "1666",
+          "postcode_count": 698
+        },
+        {
+          "outcode": "E5",
+          "code": "758",
+          "location_code": "758",
+          "postcode_count": 653
+        },
+        {
+          "outcode": "E9",
+          "code": "763",
+          "location_code": "763",
+          "postcode_count": 617
+        },
+        {
+          "outcode": "N4",
+          "code": "1682",
+          "location_code": "1682",
+          "postcode_count": 256
+        },
+        {
+          "outcode": "EC2A",
+          "code": "772",
+          "location_code": "772",
+          "postcode_count": 244
+        },
+        {
+          "outcode": "E2",
+          "code": "755",
+          "location_code": "755",
+          "postcode_count": 194
+        },
+        {
+          "outcode": "EC1V",
+          "code": "770",
+          "location_code": "770",
+          "postcode_count": 37
+        },
+        {
+          "outcode": "E1",
+          "code": "744",
+          "location_code": "744",
+          "postcode_count": 15
+        },
+        {
+          "outcode": "N5",
+          "code": "1683",
+          "location_code": "1683",
+          "postcode_count": 6
+        },
+        {
+          "outcode": "E15",
+          "code": "750",
+          "location_code": "750",
+          "postcode_count": 5
+        },
+        {
+          "outcode": "N15",
+          "code": "1672",
+          "location_code": "1672",
+          "postcode_count": 5
+        },
+        {
+          "outcode": "EC2M",
+          "code": "773",
+          "location_code": "773",
+          "postcode_count": 3
+        }
+      ]
+    },
+    {
+      "name": "Hammersmith and Fulham",
+      "normalised_name": "hammersmith and fulham",
+      "borough_code": "E09000013",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61407&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Hammersmith-And-Fulham.html",
+      "seed_location_identifier": "REGION^61407",
+      "seed_source_name": "Hammersmith and Fulham",
+      "outcodes": [
+        {
+          "outcode": "SW6",
+          "code": "2519",
+          "location_code": "2519",
+          "postcode_count": 1502
+        },
+        {
+          "outcode": "W6",
+          "code": "2766",
+          "location_code": "2766",
+          "postcode_count": 774
+        },
+        {
+          "outcode": "W12",
+          "code": "2746",
+          "location_code": "2746",
+          "postcode_count": 750
+        },
+        {
+          "outcode": "W14",
+          "code": "2748",
+          "location_code": "2748",
+          "postcode_count": 499
+        },
+        {
+          "outcode": "NW10",
+          "code": "1856",
+          "location_code": "1856",
+          "postcode_count": 63
+        },
+        {
+          "outcode": "W3",
+          "code": "2763",
+          "location_code": "2763",
+          "postcode_count": 23
+        },
+        {
+          "outcode": "SW10",
+          "code": "2496",
+          "location_code": "2496",
+          "postcode_count": 21
+        },
+        {
+          "outcode": "W11",
+          "code": "2745",
+          "location_code": "2745",
+          "postcode_count": 19
+        },
+        {
+          "outcode": "W10",
+          "code": "2744",
+          "location_code": "2744",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "W4",
+          "code": "2764",
+          "location_code": "2764",
+          "postcode_count": 3
+        }
+      ]
+    },
+    {
+      "name": "Haringey",
+      "normalised_name": "haringey",
+      "borough_code": "E09000014",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61227&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Haringey.html",
+      "seed_location_identifier": "REGION^61227",
+      "seed_source_name": "Haringey",
+      "outcodes": [
+        {
+          "outcode": "N17",
+          "code": "1674",
+          "location_code": "1674",
+          "postcode_count": 1063
+        },
+        {
+          "outcode": "N15",
+          "code": "1672",
+          "location_code": "1672",
+          "postcode_count": 685
+        },
+        {
+          "outcode": "N22",
+          "code": "1680",
+          "location_code": "1680",
+          "postcode_count": 675
+        },
+        {
+          "outcode": "N8",
+          "code": "1686",
+          "location_code": "1686",
+          "postcode_count": 664
+        },
+        {
+          "outcode": "N10",
+          "code": "1667",
+          "location_code": "1667",
+          "postcode_count": 393
+        },
+        {
+          "outcode": "N6",
+          "code": "1684",
+          "location_code": "1684",
+          "postcode_count": 357
+        },
+        {
+          "outcode": "N4",
+          "code": "1682",
+          "location_code": "1682",
+          "postcode_count": 332
+        },
+        {
+          "outcode": "N11",
+          "code": "1668",
+          "location_code": "1668",
+          "postcode_count": 119
+        },
+        {
+          "outcode": "N2",
+          "code": "1677",
+          "location_code": "1677",
+          "postcode_count": 87
+        },
+        {
+          "outcode": "N13",
+          "code": "1670",
+          "location_code": "1670",
+          "postcode_count": 5
+        },
+        {
+          "outcode": "N18",
+          "code": "1675",
+          "location_code": "1675",
+          "postcode_count": 2
+        }
+      ]
+    },
+    {
+      "name": "Harrow",
+      "normalised_name": "harrow",
+      "borough_code": "E09000015",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93956&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Harrow-93956.html",
+      "seed_location_identifier": "REGION^93956",
+      "seed_source_name": "Harrow",
+      "outcodes": [
+        {
+          "outcode": "HA3",
+          "code": "1056",
+          "location_code": "1056",
+          "postcode_count": 978
+        },
+        {
+          "outcode": "HA2",
+          "code": "1055",
+          "location_code": "1055",
+          "postcode_count": 962
+        },
+        {
+          "outcode": "HA1",
+          "code": "1054",
+          "location_code": "1054",
+          "postcode_count": 897
+        },
+        {
+          "outcode": "HA5",
+          "code": "1058",
+          "location_code": "1058",
+          "postcode_count": 853
+        },
+        {
+          "outcode": "HA7",
+          "code": "1060",
+          "location_code": "1060",
+          "postcode_count": 850
+        },
+        {
+          "outcode": "HA8",
+          "code": "1061",
+          "location_code": "1061",
+          "postcode_count": 396
+        },
+        {
+          "outcode": "UB5",
+          "code": "2739",
+          "location_code": "2739",
+          "postcode_count": 17
+        },
+        {
+          "outcode": "HA4",
+          "code": "1057",
+          "location_code": "1057",
+          "postcode_count": 4
+        },
+        {
+          "outcode": "NW9",
+          "code": "1865",
+          "location_code": "1865",
+          "postcode_count": 4
+        },
+        {
+          "outcode": "WD23",
+          "code": "2806",
+          "location_code": "2806",
+          "postcode_count": 2
+        },
+        {
+          "outcode": "UB6",
+          "code": "2740",
+          "location_code": "2740",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Havering",
+      "normalised_name": "havering",
+      "borough_code": "E09000016",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61228&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Havering.html",
+      "seed_location_identifier": "REGION^61228",
+      "seed_source_name": "Havering",
+      "outcodes": [
+        {
+          "outcode": "RM3",
+          "code": "2200",
+          "location_code": "2200",
+          "postcode_count": 933
+        },
+        {
+          "outcode": "RM13",
+          "code": "2191",
+          "location_code": "2191",
+          "postcode_count": 628
+        },
+        {
+          "outcode": "RM12",
+          "code": "2190",
+          "location_code": "2190",
+          "postcode_count": 618
+        },
+        {
+          "outcode": "RM14",
+          "code": "2192",
+          "location_code": "2192",
+          "postcode_count": 576
+        },
+        {
+          "outcode": "RM11",
+          "code": "2189",
+          "location_code": "2189",
+          "postcode_count": 573
+        },
+        {
+          "outcode": "RM7",
+          "code": "2205",
+          "location_code": "2205",
+          "postcode_count": 512
+        },
+        {
+          "outcode": "RM1",
+          "code": "2187",
+          "location_code": "2187",
+          "postcode_count": 496
+        },
+        {
+          "outcode": "RM5",
+          "code": "2202",
+          "location_code": "2202",
+          "postcode_count": 369
+        },
+        {
+          "outcode": "RM2",
+          "code": "2198",
+          "location_code": "2198",
+          "postcode_count": 265
+        },
+        {
+          "outcode": "RM4",
+          "code": "2201",
+          "location_code": "2201",
+          "postcode_count": 28
+        },
+        {
+          "outcode": "RM15",
+          "code": "2193",
+          "location_code": "2193",
+          "postcode_count": 2
+        },
+        {
+          "outcode": "CM13",
+          "code": "486",
+          "location_code": "486",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "CM14",
+          "code": "487",
+          "location_code": "487",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "RM9",
+          "code": "2207",
+          "location_code": "2207",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Hillingdon",
+      "normalised_name": "hillingdon",
+      "borough_code": "E09000017",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93959&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Hillingdon-93959.html",
+      "seed_location_identifier": "REGION^93959",
+      "seed_source_name": "Hillingdon",
+      "outcodes": [
+        {
+          "outcode": "HA4",
+          "code": "1057",
+          "location_code": "1057",
+          "postcode_count": 1149
+        },
+        {
+          "outcode": "UB3",
+          "code": "2737",
+          "location_code": "2737",
+          "postcode_count": 971
+        },
+        {
+          "outcode": "UB8",
+          "code": "2742",
+          "location_code": "2742",
+          "postcode_count": 847
+        },
+        {
+          "outcode": "UB10",
+          "code": "2734",
+          "location_code": "2734",
+          "postcode_count": 709
+        },
+        {
+          "outcode": "UB4",
+          "code": "2738",
+          "location_code": "2738",
+          "postcode_count": 697
+        },
+        {
+          "outcode": "UB7",
+          "code": "2741",
+          "location_code": "2741",
+          "postcode_count": 634
+        },
+        {
+          "outcode": "HA6",
+          "code": "1059",
+          "location_code": "1059",
+          "postcode_count": 534
+        },
+        {
+          "outcode": "HA5",
+          "code": "1058",
+          "location_code": "1058",
+          "postcode_count": 262
+        },
+        {
+          "outcode": "UB9",
+          "code": "2743",
+          "location_code": "2743",
+          "postcode_count": 204
+        },
+        {
+          "outcode": "TW6",
+          "code": "2729",
+          "location_code": "2729",
+          "postcode_count": 123
+        },
+        {
+          "outcode": "UB11",
+          "code": "2735",
+          "location_code": "2735",
+          "postcode_count": 23
+        },
+        {
+          "outcode": "UB5",
+          "code": "2739",
+          "location_code": "2739",
+          "postcode_count": 20
+        },
+        {
+          "outcode": "WD3",
+          "code": "2809",
+          "location_code": "2809",
+          "postcode_count": 9
+        },
+        {
+          "outcode": "UB1",
+          "code": "2733",
+          "location_code": "2733",
+          "postcode_count": 6
+        },
+        {
+          "outcode": "UB2",
+          "code": "2736",
+          "location_code": "2736",
+          "postcode_count": 4
+        },
+        {
+          "outcode": "TW14",
+          "code": "2718",
+          "location_code": "2718",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "TW19",
+          "code": "2723",
+          "location_code": "2723",
+          "postcode_count": 2
+        }
+      ]
+    },
+    {
+      "name": "Hounslow",
+      "normalised_name": "hounslow",
+      "borough_code": "E09000018",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93962&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Hounslow-93962.html",
+      "seed_location_identifier": "REGION^93962",
+      "seed_source_name": "Hounslow",
+      "outcodes": [
+        {
+          "outcode": "W4",
+          "code": "2764",
+          "location_code": "2764",
+          "postcode_count": 810
+        },
+        {
+          "outcode": "TW7",
+          "code": "2730",
+          "location_code": "2730",
+          "postcode_count": 757
+        },
+        {
+          "outcode": "TW3",
+          "code": "2726",
+          "location_code": "2726",
+          "postcode_count": 749
+        },
+        {
+          "outcode": "TW13",
+          "code": "2717",
+          "location_code": "2717",
+          "postcode_count": 681
+        },
+        {
+          "outcode": "TW8",
+          "code": "2731",
+          "location_code": "2731",
+          "postcode_count": 504
+        },
+        {
+          "outcode": "TW14",
+          "code": "2718",
+          "location_code": "2718",
+          "postcode_count": 459
+        },
+        {
+          "outcode": "TW5",
+          "code": "2728",
+          "location_code": "2728",
+          "postcode_count": 400
+        },
+        {
+          "outcode": "TW4",
+          "code": "2727",
+          "location_code": "2727",
+          "postcode_count": 360
+        },
+        {
+          "outcode": "UB2",
+          "code": "2736",
+          "location_code": "2736",
+          "postcode_count": 98
+        },
+        {
+          "outcode": "TW1",
+          "code": "2713",
+          "location_code": "2713",
+          "postcode_count": 56
+        },
+        {
+          "outcode": "W3",
+          "code": "2763",
+          "location_code": "2763",
+          "postcode_count": 29
+        },
+        {
+          "outcode": "W6",
+          "code": "2766",
+          "location_code": "2766",
+          "postcode_count": 13
+        },
+        {
+          "outcode": "W5",
+          "code": "2765",
+          "location_code": "2765",
+          "postcode_count": 11
+        },
+        {
+          "outcode": "TW15",
+          "code": "2719",
+          "location_code": "2719",
+          "postcode_count": 6
+        },
+        {
+          "outcode": "TW2",
+          "code": "2724",
+          "location_code": "2724",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "TW6",
+          "code": "2729",
+          "location_code": "2729",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "TW19",
+          "code": "2723",
+          "location_code": "2723",
+          "postcode_count": 2
+        }
+      ]
+    },
+    {
+      "name": "Islington",
+      "normalised_name": "islington",
+      "borough_code": "E09000019",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93965&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Islington.html",
+      "seed_location_identifier": "REGION^93965",
+      "seed_source_name": "Islington",
+      "outcodes": [
+        {
+          "outcode": "N1",
+          "code": "1666",
+          "location_code": "1666",
+          "postcode_count": 1590
+        },
+        {
+          "outcode": "N7",
+          "code": "1685",
+          "location_code": "1685",
+          "postcode_count": 876
+        },
+        {
+          "outcode": "N19",
+          "code": "1676",
+          "location_code": "1676",
+          "postcode_count": 612
+        },
+        {
+          "outcode": "EC1V",
+          "code": "770",
+          "location_code": "770",
+          "postcode_count": 449
+        },
+        {
+          "outcode": "N5",
+          "code": "1683",
+          "location_code": "1683",
+          "postcode_count": 411
+        },
+        {
+          "outcode": "N4",
+          "code": "1682",
+          "location_code": "1682",
+          "postcode_count": 271
+        },
+        {
+          "outcode": "EC1R",
+          "code": "769",
+          "location_code": "769",
+          "postcode_count": 224
+        },
+        {
+          "outcode": "EC1P",
+          "code": "768",
+          "location_code": "768",
+          "postcode_count": 200
+        },
+        {
+          "outcode": "EC1M",
+          "code": "766",
+          "location_code": "766",
+          "postcode_count": 167
+        },
+        {
+          "outcode": "EC1Y",
+          "code": "771",
+          "location_code": "771",
+          "postcode_count": 160
+        },
+        {
+          "outcode": "W1A",
+          "code": "2749",
+          "location_code": "2749",
+          "postcode_count": 159
+        },
+        {
+          "outcode": "WC1X",
+          "code": "2795",
+          "location_code": "2795",
+          "postcode_count": 104
+        },
+        {
+          "outcode": "EC2A",
+          "code": "772",
+          "location_code": "772",
+          "postcode_count": 93
+        },
+        {
+          "outcode": "EC2P",
+          "code": "775",
+          "location_code": "775",
+          "postcode_count": 72
+        },
+        {
+          "outcode": "EC1A",
+          "code": "765",
+          "location_code": "765",
+          "postcode_count": 64
+        },
+        {
+          "outcode": "EC4P",
+          "code": "788",
+          "location_code": "788",
+          "postcode_count": 48
+        },
+        {
+          "outcode": "WC1A",
+          "code": "2788",
+          "location_code": "2788",
+          "postcode_count": 48
+        },
+        {
+          "outcode": "N16",
+          "code": "1673",
+          "location_code": "1673",
+          "postcode_count": 43
+        },
+        {
+          "outcode": "EC2M",
+          "code": "773",
+          "location_code": "773",
+          "postcode_count": 26
+        },
+        {
+          "outcode": "N6",
+          "code": "1684",
+          "location_code": "1684",
+          "postcode_count": 23
+        },
+        {
+          "outcode": "EC3P",
+          "code": "782",
+          "location_code": "782",
+          "postcode_count": 20
+        },
+        {
+          "outcode": "N15",
+          "code": "1672",
+          "location_code": "1672",
+          "postcode_count": 14
+        },
+        {
+          "outcode": "W1W",
+          "code": "2761",
+          "location_code": "2761",
+          "postcode_count": 8
+        },
+        {
+          "outcode": "WC1H",
+          "code": "2791",
+          "location_code": "2791",
+          "postcode_count": 8
+        },
+        {
+          "outcode": "EC2R",
+          "code": "776",
+          "location_code": "776",
+          "postcode_count": 7
+        },
+        {
+          "outcode": "EC2Y",
+          "code": "778",
+          "location_code": "778",
+          "postcode_count": 7
+        },
+        {
+          "outcode": "WC2H",
+          "code": "2799",
+          "location_code": "2799",
+          "postcode_count": 7
+        },
+        {
+          "outcode": "N8",
+          "code": "1686",
+          "location_code": "1686",
+          "postcode_count": 6
+        },
+        {
+          "outcode": "NW5",
+          "code": "1861",
+          "location_code": "1861",
+          "postcode_count": 6
+        },
+        {
+          "outcode": "WC1B",
+          "code": "2789",
+          "location_code": "2789",
+          "postcode_count": 6
+        },
+        {
+          "outcode": "EC4N",
+          "code": "787",
+          "location_code": "787",
+          "postcode_count": 5
+        },
+        {
+          "outcode": "WC2R",
+          "code": "2801",
+          "location_code": "2801",
+          "postcode_count": 5
+        },
+        {
+          "outcode": "WC1N",
+          "code": "2792",
+          "location_code": "2792",
+          "postcode_count": 4
+        },
+        {
+          "outcode": "WC2B",
+          "code": "2797",
+          "location_code": "2797",
+          "postcode_count": 4
+        },
+        {
+          "outcode": "EC3R",
+          "code": "783",
+          "location_code": "783",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "EC4A",
+          "code": "785",
+          "location_code": "785",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "WC1V",
+          "code": "2794",
+          "location_code": "2794",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "WC2A",
+          "code": "2796",
+          "location_code": "2796",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "E8",
+          "code": "762",
+          "location_code": "762",
+          "postcode_count": 2
+        },
+        {
+          "outcode": "EC2N",
+          "code": "774",
+          "location_code": "774",
+          "postcode_count": 2
+        },
+        {
+          "outcode": "EC3A",
+          "code": "779",
+          "location_code": "779",
+          "postcode_count": 2
+        },
+        {
+          "outcode": "EC4M",
+          "code": "786",
+          "location_code": "786",
+          "postcode_count": 2
+        },
+        {
+          "outcode": "EC4V",
+          "code": "790",
+          "location_code": "790",
+          "postcode_count": 2
+        },
+        {
+          "outcode": "EC1N",
+          "code": "767",
+          "location_code": "767",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "EC2V",
+          "code": "777",
+          "location_code": "777",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "EC3N",
+          "code": "781",
+          "location_code": "781",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "EC3V",
+          "code": "784",
+          "location_code": "784",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "EC4R",
+          "code": "789",
+          "location_code": "789",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "EC4Y",
+          "code": "791",
+          "location_code": "791",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "W1G",
+          "code": "2754",
+          "location_code": "2754",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "W1H",
+          "code": "2755",
+          "location_code": "2755",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "W1J",
+          "code": "2756",
+          "location_code": "2756",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "W1S",
+          "code": "2758",
+          "location_code": "2758",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "W1U",
+          "code": "2760",
+          "location_code": "2760",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "WC2N",
+          "code": "2800",
+          "location_code": "2800",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Kensington and Chelsea",
+      "normalised_name": "kensington and chelsea",
+      "borough_code": "E09000020",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61229&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Kensington-And-Chelsea.html",
+      "seed_location_identifier": "REGION^61229",
+      "seed_source_name": "Kensington Chelsea",
+      "outcodes": [
+        {
+          "outcode": "SW3",
+          "code": "2516",
+          "location_code": "2516",
+          "postcode_count": 834
+        },
+        {
+          "outcode": "W8",
+          "code": "2768",
+          "location_code": "2768",
+          "postcode_count": 693
+        },
+        {
+          "outcode": "W11",
+          "code": "2745",
+          "location_code": "2745",
+          "postcode_count": 620
+        },
+        {
+          "outcode": "SW7",
+          "code": "2520",
+          "location_code": "2520",
+          "postcode_count": 478
+        },
+        {
+          "outcode": "W10",
+          "code": "2744",
+          "location_code": "2744",
+          "postcode_count": 472
+        },
+        {
+          "outcode": "SW10",
+          "code": "2496",
+          "location_code": "2496",
+          "postcode_count": 438
+        },
+        {
+          "outcode": "SW5",
+          "code": "2518",
+          "location_code": "2518",
+          "postcode_count": 311
+        },
+        {
+          "outcode": "SW1X",
+          "code": "2512",
+          "location_code": "2512",
+          "postcode_count": 192
+        },
+        {
+          "outcode": "W14",
+          "code": "2748",
+          "location_code": "2748",
+          "postcode_count": 147
+        },
+        {
+          "outcode": "SW1W",
+          "code": "2511",
+          "location_code": "2511",
+          "postcode_count": 52
+        },
+        {
+          "outcode": "W2",
+          "code": "2762",
+          "location_code": "2762",
+          "postcode_count": 51
+        },
+        {
+          "outcode": "W9",
+          "code": "2769",
+          "location_code": "2769",
+          "postcode_count": 41
+        }
+      ]
+    },
+    {
+      "name": "Kingston upon Thames",
+      "normalised_name": "kingston upon thames",
+      "borough_code": "E09000021",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93968&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Kingston-upon-Thames-93968.html",
+      "seed_location_identifier": "REGION^93968",
+      "seed_source_name": "Kingston Upon Thames",
+      "outcodes": [
+        {
+          "outcode": "KT2",
+          "code": "1295",
+          "location_code": "1295",
+          "postcode_count": 665
+        },
+        {
+          "outcode": "KT6",
+          "code": "1304",
+          "location_code": "1304",
+          "postcode_count": 654
+        },
+        {
+          "outcode": "KT1",
+          "code": "1284",
+          "location_code": "1284",
+          "postcode_count": 639
+        },
+        {
+          "outcode": "KT3",
+          "code": "1301",
+          "location_code": "1301",
+          "postcode_count": 639
+        },
+        {
+          "outcode": "KT9",
+          "code": "1307",
+          "location_code": "1307",
+          "postcode_count": 398
+        },
+        {
+          "outcode": "KT5",
+          "code": "1303",
+          "location_code": "1303",
+          "postcode_count": 366
+        },
+        {
+          "outcode": "KT4",
+          "code": "1302",
+          "location_code": "1302",
+          "postcode_count": 98
+        },
+        {
+          "outcode": "SW15",
+          "code": "2501",
+          "location_code": "2501",
+          "postcode_count": 44
+        },
+        {
+          "outcode": "SW20",
+          "code": "2515",
+          "location_code": "2515",
+          "postcode_count": 8
+        },
+        {
+          "outcode": "TW10",
+          "code": "2714",
+          "location_code": "2714",
+          "postcode_count": 4
+        },
+        {
+          "outcode": "KT19",
+          "code": "1294",
+          "location_code": "1294",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "KT7",
+          "code": "1305",
+          "location_code": "1305",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "KT18",
+          "code": "1293",
+          "location_code": "1293",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "KT22",
+          "code": "1298",
+          "location_code": "1298",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Lambeth",
+      "normalised_name": "lambeth",
+      "borough_code": "E09000022",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93971&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Lambeth.html",
+      "seed_location_identifier": "REGION^93971",
+      "seed_source_name": "Lambeth",
+      "outcodes": [
+        {
+          "outcode": "SW2",
+          "code": "2514",
+          "location_code": "2514",
+          "postcode_count": 1042
+        },
+        {
+          "outcode": "SW9",
+          "code": "2522",
+          "location_code": "2522",
+          "postcode_count": 973
+        },
+        {
+          "outcode": "SW4",
+          "code": "2517",
+          "location_code": "2517",
+          "postcode_count": 883
+        },
+        {
+          "outcode": "SW16",
+          "code": "2502",
+          "location_code": "2502",
+          "postcode_count": 786
+        },
+        {
+          "outcode": "SW8",
+          "code": "2521",
+          "location_code": "2521",
+          "postcode_count": 608
+        },
+        {
+          "outcode": "SE11",
+          "code": "2311",
+          "location_code": "2311",
+          "postcode_count": 428
+        },
+        {
+          "outcode": "SE27",
+          "code": "2328",
+          "location_code": "2328",
+          "postcode_count": 382
+        },
+        {
+          "outcode": "SE1",
+          "code": "2309",
+          "location_code": "2309",
+          "postcode_count": 309
+        },
+        {
+          "outcode": "SE24",
+          "code": "2325",
+          "location_code": "2325",
+          "postcode_count": 206
+        },
+        {
+          "outcode": "SW12",
+          "code": "2498",
+          "location_code": "2498",
+          "postcode_count": 156
+        },
+        {
+          "outcode": "SE5",
+          "code": "2332",
+          "location_code": "2332",
+          "postcode_count": 146
+        },
+        {
+          "outcode": "SE21",
+          "code": "2322",
+          "location_code": "2322",
+          "postcode_count": 115
+        },
+        {
+          "outcode": "SE19",
+          "code": "2319",
+          "location_code": "2319",
+          "postcode_count": 108
+        },
+        {
+          "outcode": "SW3",
+          "code": "2516",
+          "location_code": "2516",
+          "postcode_count": 28
+        },
+        {
+          "outcode": "CR4",
+          "code": "526",
+          "location_code": "526",
+          "postcode_count": 2
+        }
+      ]
+    },
+    {
+      "name": "Lewisham",
+      "normalised_name": "lewisham",
+      "borough_code": "E09000023",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61413&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Lewisham-61413.html",
+      "seed_location_identifier": "REGION^61413",
+      "seed_source_name": "Lewisham",
+      "outcodes": [
+        {
+          "outcode": "SE6",
+          "code": "2333",
+          "location_code": "2333",
+          "postcode_count": 861
+        },
+        {
+          "outcode": "SE13",
+          "code": "2313",
+          "location_code": "2313",
+          "postcode_count": 686
+        },
+        {
+          "outcode": "SE23",
+          "code": "2324",
+          "location_code": "2324",
+          "postcode_count": 594
+        },
+        {
+          "outcode": "SE26",
+          "code": "2327",
+          "location_code": "2327",
+          "postcode_count": 479
+        },
+        {
+          "outcode": "SE8",
+          "code": "2335",
+          "location_code": "2335",
+          "postcode_count": 474
+        },
+        {
+          "outcode": "SE4",
+          "code": "2331",
+          "location_code": "2331",
+          "postcode_count": 467
+        },
+        {
+          "outcode": "SE14",
+          "code": "2314",
+          "location_code": "2314",
+          "postcode_count": 412
+        },
+        {
+          "outcode": "SE12",
+          "code": "2312",
+          "location_code": "2312",
+          "postcode_count": 391
+        },
+        {
+          "outcode": "BR1",
+          "code": "251",
+          "location_code": "251",
+          "postcode_count": 262
+        },
+        {
+          "outcode": "SE3",
+          "code": "2330",
+          "location_code": "2330",
+          "postcode_count": 169
+        },
+        {
+          "outcode": "SE16",
+          "code": "2316",
+          "location_code": "2316",
+          "postcode_count": 54
+        },
+        {
+          "outcode": "SE10",
+          "code": "2310",
+          "location_code": "2310",
+          "postcode_count": 43
+        },
+        {
+          "outcode": "SE9",
+          "code": "2336",
+          "location_code": "2336",
+          "postcode_count": 37
+        },
+        {
+          "outcode": "SE15",
+          "code": "2315",
+          "location_code": "2315",
+          "postcode_count": 36
+        },
+        {
+          "outcode": "BR3",
+          "code": "253",
+          "location_code": "253",
+          "postcode_count": 4
+        }
+      ]
+    },
+    {
+      "name": "Merton",
+      "normalised_name": "merton",
+      "borough_code": "E09000024",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61414&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Merton.html",
+      "seed_location_identifier": "REGION^61414",
+      "seed_source_name": "Merton",
+      "outcodes": [
+        {
+          "outcode": "SW19",
+          "code": "2505",
+          "location_code": "2505",
+          "postcode_count": 1407
+        },
+        {
+          "outcode": "CR4",
+          "code": "526",
+          "location_code": "526",
+          "postcode_count": 859
+        },
+        {
+          "outcode": "SW20",
+          "code": "2515",
+          "location_code": "2515",
+          "postcode_count": 546
+        },
+        {
+          "outcode": "SM4",
+          "code": "2388",
+          "location_code": "2388",
+          "postcode_count": 545
+        },
+        {
+          "outcode": "KT3",
+          "code": "1301",
+          "location_code": "1301",
+          "postcode_count": 103
+        },
+        {
+          "outcode": "SW16",
+          "code": "2502",
+          "location_code": "2502",
+          "postcode_count": 95
+        },
+        {
+          "outcode": "SW17",
+          "code": "2503",
+          "location_code": "2503",
+          "postcode_count": 90
+        },
+        {
+          "outcode": "SW18",
+          "code": "2504",
+          "location_code": "2504",
+          "postcode_count": 17
+        },
+        {
+          "outcode": "CR7",
+          "code": "529",
+          "location_code": "529",
+          "postcode_count": 8
+        },
+        {
+          "outcode": "SM3",
+          "code": "2387",
+          "location_code": "2387",
+          "postcode_count": 4
+        }
+      ]
+    },
+    {
+      "name": "Newham",
+      "normalised_name": "newham",
+      "borough_code": "E09000025",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61231&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Newham.html",
+      "seed_location_identifier": "REGION^61231",
+      "seed_source_name": "Newham",
+      "outcodes": [
+        {
+          "outcode": "E16",
+          "code": "751",
+          "location_code": "751",
+          "postcode_count": 954
+        },
+        {
+          "outcode": "E6",
+          "code": "759",
+          "location_code": "759",
+          "postcode_count": 924
+        },
+        {
+          "outcode": "E15",
+          "code": "750",
+          "location_code": "750",
+          "postcode_count": 768
+        },
+        {
+          "outcode": "E13",
+          "code": "748",
+          "location_code": "748",
+          "postcode_count": 563
+        },
+        {
+          "outcode": "E7",
+          "code": "760",
+          "location_code": "760",
+          "postcode_count": 497
+        },
+        {
+          "outcode": "E12",
+          "code": "747",
+          "location_code": "747",
+          "postcode_count": 351
+        },
+        {
+          "outcode": "E3",
+          "code": "756",
+          "location_code": "756",
+          "postcode_count": 8
+        },
+        {
+          "outcode": "IG11",
+          "code": "1148",
+          "location_code": "1148",
+          "postcode_count": 8
+        }
+      ]
+    },
+    {
+      "name": "Redbridge",
+      "normalised_name": "redbridge",
+      "borough_code": "E09000026",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61537&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Redbridge-61537.html",
+      "seed_location_identifier": "REGION^61537",
+      "seed_source_name": "Redbridge",
+      "outcodes": [
+        {
+          "outcode": "IG1",
+          "code": "1146",
+          "location_code": "1146",
+          "postcode_count": 929
+        },
+        {
+          "outcode": "IG8",
+          "code": "1155",
+          "location_code": "1155",
+          "postcode_count": 633
+        },
+        {
+          "outcode": "IG6",
+          "code": "1153",
+          "location_code": "1153",
+          "postcode_count": 560
+        },
+        {
+          "outcode": "IG3",
+          "code": "1150",
+          "location_code": "1150",
+          "postcode_count": 474
+        },
+        {
+          "outcode": "IG2",
+          "code": "1149",
+          "location_code": "1149",
+          "postcode_count": 412
+        },
+        {
+          "outcode": "E18",
+          "code": "753",
+          "location_code": "753",
+          "postcode_count": 372
+        },
+        {
+          "outcode": "E11",
+          "code": "746",
+          "location_code": "746",
+          "postcode_count": 297
+        },
+        {
+          "outcode": "RM6",
+          "code": "2204",
+          "location_code": "2204",
+          "postcode_count": 267
+        },
+        {
+          "outcode": "IG5",
+          "code": "1152",
+          "location_code": "1152",
+          "postcode_count": 234
+        },
+        {
+          "outcode": "IG7",
+          "code": "1154",
+          "location_code": "1154",
+          "postcode_count": 182
+        },
+        {
+          "outcode": "IG4",
+          "code": "1151",
+          "location_code": "1151",
+          "postcode_count": 139
+        },
+        {
+          "outcode": "E12",
+          "code": "747",
+          "location_code": "747",
+          "postcode_count": 46
+        },
+        {
+          "outcode": "IG9",
+          "code": "1156",
+          "location_code": "1156",
+          "postcode_count": 32
+        },
+        {
+          "outcode": "RM8",
+          "code": "2206",
+          "location_code": "2206",
+          "postcode_count": 20
+        },
+        {
+          "outcode": "IG11",
+          "code": "1148",
+          "location_code": "1148",
+          "postcode_count": 13
+        },
+        {
+          "outcode": "E7",
+          "code": "760",
+          "location_code": "760",
+          "postcode_count": 1
+        },
+        {
+          "outcode": "RM5",
+          "code": "2202",
+          "location_code": "2202",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Richmond upon Thames",
+      "normalised_name": "richmond upon thames",
+      "borough_code": "E09000027",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61415&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Richmond-Upon-Thames.html",
+      "seed_location_identifier": "REGION^61415",
+      "seed_source_name": "Richmond Upon Thames",
+      "outcodes": [
+        {
+          "outcode": "TW1",
+          "code": "2713",
+          "location_code": "2713",
+          "postcode_count": 631
+        },
+        {
+          "outcode": "TW9",
+          "code": "2732",
+          "location_code": "2732",
+          "postcode_count": 610
+        },
+        {
+          "outcode": "TW12",
+          "code": "2716",
+          "location_code": "2716",
+          "postcode_count": 568
+        },
+        {
+          "outcode": "TW11",
+          "code": "2715",
+          "location_code": "2715",
+          "postcode_count": 556
+        },
+        {
+          "outcode": "TW2",
+          "code": "2724",
+          "location_code": "2724",
+          "postcode_count": 548
+        },
+        {
+          "outcode": "TW10",
+          "code": "2714",
+          "location_code": "2714",
+          "postcode_count": 509
+        },
+        {
+          "outcode": "SW13",
+          "code": "2499",
+          "location_code": "2499",
+          "postcode_count": 380
+        },
+        {
+          "outcode": "SW14",
+          "code": "2500",
+          "location_code": "2500",
+          "postcode_count": 370
+        },
+        {
+          "outcode": "KT1",
+          "code": "1284",
+          "location_code": "1284",
+          "postcode_count": 75
+        },
+        {
+          "outcode": "TW4",
+          "code": "2727",
+          "location_code": "2727",
+          "postcode_count": 65
+        },
+        {
+          "outcode": "TW3",
+          "code": "2726",
+          "location_code": "2726",
+          "postcode_count": 28
+        },
+        {
+          "outcode": "KT8",
+          "code": "1306",
+          "location_code": "1306",
+          "postcode_count": 19
+        },
+        {
+          "outcode": "TW13",
+          "code": "2717",
+          "location_code": "2717",
+          "postcode_count": 18
+        },
+        {
+          "outcode": "SW15",
+          "code": "2501",
+          "location_code": "2501",
+          "postcode_count": 17
+        },
+        {
+          "outcode": "KT2",
+          "code": "1295",
+          "location_code": "1295",
+          "postcode_count": 13
+        },
+        {
+          "outcode": "TW7",
+          "code": "2730",
+          "location_code": "2730",
+          "postcode_count": 9
+        }
+      ]
+    },
+    {
+      "name": "Southwark",
+      "normalised_name": "southwark",
+      "borough_code": "E09000028",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61518&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Southwark.html",
+      "seed_location_identifier": "REGION^61518",
+      "seed_source_name": "Southwark",
+      "outcodes": [
+        {
+          "outcode": "SE1",
+          "code": "2309",
+          "location_code": "2309",
+          "postcode_count": 1693
+        },
+        {
+          "outcode": "SE15",
+          "code": "2315",
+          "location_code": "2315",
+          "postcode_count": 1149
+        },
+        {
+          "outcode": "SE16",
+          "code": "2316",
+          "location_code": "2316",
+          "postcode_count": 1031
+        },
+        {
+          "outcode": "SE5",
+          "code": "2332",
+          "location_code": "2332",
+          "postcode_count": 730
+        },
+        {
+          "outcode": "SE17",
+          "code": "2317",
+          "location_code": "2317",
+          "postcode_count": 670
+        },
+        {
+          "outcode": "SE22",
+          "code": "2323",
+          "location_code": "2323",
+          "postcode_count": 515
+        },
+        {
+          "outcode": "SE21",
+          "code": "2322",
+          "location_code": "2322",
+          "postcode_count": 182
+        },
+        {
+          "outcode": "SE24",
+          "code": "2325",
+          "location_code": "2325",
+          "postcode_count": 92
+        },
+        {
+          "outcode": "SE11",
+          "code": "2311",
+          "location_code": "2311",
+          "postcode_count": 58
+        },
+        {
+          "outcode": "SE19",
+          "code": "2319",
+          "location_code": "2319",
+          "postcode_count": 56
+        },
+        {
+          "outcode": "SE23",
+          "code": "2324",
+          "location_code": "2324",
+          "postcode_count": 29
+        },
+        {
+          "outcode": "SE8",
+          "code": "2335",
+          "location_code": "2335",
+          "postcode_count": 19
+        },
+        {
+          "outcode": "SE26",
+          "code": "2327",
+          "location_code": "2327",
+          "postcode_count": 17
+        },
+        {
+          "outcode": "SE14",
+          "code": "2314",
+          "location_code": "2314",
+          "postcode_count": 7
+        },
+        {
+          "outcode": "SE4",
+          "code": "2331",
+          "location_code": "2331",
+          "postcode_count": 4
+        }
+      ]
+    },
+    {
+      "name": "Sutton",
+      "normalised_name": "sutton",
+      "borough_code": "E09000029",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93974&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Sutton-93974.html",
+      "seed_location_identifier": "REGION^93974",
+      "seed_source_name": "Sutton",
+      "outcodes": [
+        {
+          "outcode": "SM1",
+          "code": "2385",
+          "location_code": "2385",
+          "postcode_count": 856
+        },
+        {
+          "outcode": "SM6",
+          "code": "2390",
+          "location_code": "2390",
+          "postcode_count": 748
+        },
+        {
+          "outcode": "SM5",
+          "code": "2389",
+          "location_code": "2389",
+          "postcode_count": 717
+        },
+        {
+          "outcode": "SM2",
+          "code": "2386",
+          "location_code": "2386",
+          "postcode_count": 555
+        },
+        {
+          "outcode": "SM3",
+          "code": "2387",
+          "location_code": "2387",
+          "postcode_count": 370
+        },
+        {
+          "outcode": "KT4",
+          "code": "1302",
+          "location_code": "1302",
+          "postcode_count": 305
+        },
+        {
+          "outcode": "CR0",
+          "code": "523",
+          "location_code": "523",
+          "postcode_count": 112
+        },
+        {
+          "outcode": "SM4",
+          "code": "2388",
+          "location_code": "2388",
+          "postcode_count": 48
+        },
+        {
+          "outcode": "CR4",
+          "code": "526",
+          "location_code": "526",
+          "postcode_count": 46
+        },
+        {
+          "outcode": "CR5",
+          "code": "527",
+          "location_code": "527",
+          "postcode_count": 37
+        },
+        {
+          "outcode": "CR8",
+          "code": "530",
+          "location_code": "530",
+          "postcode_count": 28
+        },
+        {
+          "outcode": "SM7",
+          "code": "2391",
+          "location_code": "2391",
+          "postcode_count": 22
+        },
+        {
+          "outcode": "KT17",
+          "code": "1292",
+          "location_code": "1292",
+          "postcode_count": 8
+        },
+        {
+          "outcode": "CR9",
+          "code": "531",
+          "location_code": "531",
+          "postcode_count": 5
+        }
+      ]
+    },
+    {
+      "name": "Tower Hamlets",
+      "normalised_name": "tower hamlets",
+      "borough_code": "E09000030",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61417&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Tower-Hamlets.html",
+      "seed_location_identifier": "REGION^61417",
+      "seed_source_name": "Tower Hamlets",
+      "outcodes": [
+        {
+          "outcode": "E14",
+          "code": "749",
+          "location_code": "749",
+          "postcode_count": 1883
+        },
+        {
+          "outcode": "E1",
+          "code": "744",
+          "location_code": "744",
+          "postcode_count": 1440
+        },
+        {
+          "outcode": "E3",
+          "code": "756",
+          "location_code": "756",
+          "postcode_count": 1141
+        },
+        {
+          "outcode": "E2",
+          "code": "755",
+          "location_code": "755",
+          "postcode_count": 776
+        },
+        {
+          "outcode": "E1W",
+          "code": "754",
+          "location_code": "754",
+          "postcode_count": 410
+        },
+        {
+          "outcode": "E98",
+          "code": "764",
+          "location_code": "764",
+          "postcode_count": 61
+        },
+        {
+          "outcode": "E9",
+          "code": "763",
+          "location_code": "763",
+          "postcode_count": 43
+        },
+        {
+          "outcode": "E8",
+          "code": "762",
+          "location_code": "762",
+          "postcode_count": 24
+        },
+        {
+          "outcode": "EC3N",
+          "code": "781",
+          "location_code": "781",
+          "postcode_count": 7
+        },
+        {
+          "outcode": "EC2M",
+          "code": "773",
+          "location_code": "773",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "E15",
+          "code": "750",
+          "location_code": "750",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Waltham Forest",
+      "normalised_name": "waltham forest",
+      "borough_code": "E09000031",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E61232&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Waltham-Forest.html",
+      "seed_location_identifier": "REGION^61232",
+      "seed_source_name": "Waltham Forest",
+      "outcodes": [
+        {
+          "outcode": "E17",
+          "code": "752",
+          "location_code": "752",
+          "postcode_count": 1514
+        },
+        {
+          "outcode": "E4",
+          "code": "757",
+          "location_code": "757",
+          "postcode_count": 946
+        },
+        {
+          "outcode": "E10",
+          "code": "745",
+          "location_code": "745",
+          "postcode_count": 596
+        },
+        {
+          "outcode": "E11",
+          "code": "746",
+          "location_code": "746",
+          "postcode_count": 553
+        },
+        {
+          "outcode": "IG8",
+          "code": "1155",
+          "location_code": "1155",
+          "postcode_count": 109
+        },
+        {
+          "outcode": "E15",
+          "code": "750",
+          "location_code": "750",
+          "postcode_count": 51
+        },
+        {
+          "outcode": "E7",
+          "code": "760",
+          "location_code": "760",
+          "postcode_count": 37
+        },
+        {
+          "outcode": "E5",
+          "code": "758",
+          "location_code": "758",
+          "postcode_count": 4
+        },
+        {
+          "outcode": "N17",
+          "code": "1674",
+          "location_code": "1674",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Wandsworth",
+      "normalised_name": "wandsworth",
+      "borough_code": "E09000032",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93977&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Wandsworth-93977.html",
+      "seed_location_identifier": "REGION^93977",
+      "seed_source_name": "Wandsworth",
+      "outcodes": [
+        {
+          "outcode": "SW11",
+          "code": "2497",
+          "location_code": "2497",
+          "postcode_count": 1448
+        },
+        {
+          "outcode": "SW18",
+          "code": "2504",
+          "location_code": "2504",
+          "postcode_count": 1192
+        },
+        {
+          "outcode": "SW15",
+          "code": "2501",
+          "location_code": "2501",
+          "postcode_count": 1174
+        },
+        {
+          "outcode": "SW17",
+          "code": "2503",
+          "location_code": "2503",
+          "postcode_count": 871
+        },
+        {
+          "outcode": "SW12",
+          "code": "2498",
+          "location_code": "2498",
+          "postcode_count": 444
+        },
+        {
+          "outcode": "SW1P",
+          "code": "2509",
+          "location_code": "2509",
+          "postcode_count": 256
+        },
+        {
+          "outcode": "SW19",
+          "code": "2505",
+          "location_code": "2505",
+          "postcode_count": 251
+        },
+        {
+          "outcode": "SW8",
+          "code": "2521",
+          "location_code": "2521",
+          "postcode_count": 228
+        },
+        {
+          "outcode": "SW16",
+          "code": "2502",
+          "location_code": "2502",
+          "postcode_count": 177
+        },
+        {
+          "outcode": "SW4",
+          "code": "2517",
+          "location_code": "2517",
+          "postcode_count": 42
+        },
+        {
+          "outcode": "SW1V",
+          "code": "2510",
+          "location_code": "2510",
+          "postcode_count": 10
+        },
+        {
+          "outcode": "SW1W",
+          "code": "2511",
+          "location_code": "2511",
+          "postcode_count": 6
+        },
+        {
+          "outcode": "SW1X",
+          "code": "2512",
+          "location_code": "2512",
+          "postcode_count": 4
+        },
+        {
+          "outcode": "SW1A",
+          "code": "2506",
+          "location_code": "2506",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "SW1H",
+          "code": "2508",
+          "location_code": "2508",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "SW1Y",
+          "code": "2513",
+          "location_code": "2513",
+          "postcode_count": 2
+        },
+        {
+          "outcode": "SW1E",
+          "code": "2507",
+          "location_code": "2507",
+          "postcode_count": 1
+        }
+      ]
+    },
+    {
+      "name": "Westminster",
+      "normalised_name": "westminster",
+      "borough_code": "E09000033",
+      "seed_search_url": "https://www.rightmove.co.uk/property-to-rent/find.html?useLocationIdentifier=true&locationIdentifier=REGION%5E93980&rent=To+rent&_includeLetAgreed=on&index=0&sortType=6&channel=RENT&transactionType=LETTING&displayLocationIdentifier=Westminster.html",
+      "seed_location_identifier": "REGION^93980",
+      "seed_source_name": "Westminster",
+      "outcodes": [
+        {
+          "outcode": "W1U",
+          "code": "2760",
+          "location_code": "2760",
+          "postcode_count": 1095
+        },
+        {
+          "outcode": "W2",
+          "code": "2762",
+          "location_code": "2762",
+          "postcode_count": 1022
+        },
+        {
+          "outcode": "W1K",
+          "code": "2757",
+          "location_code": "2757",
+          "postcode_count": 876
+        },
+        {
+          "outcode": "W1F",
+          "code": "2753",
+          "location_code": "2753",
+          "postcode_count": 757
+        },
+        {
+          "outcode": "NW8",
+          "code": "1864",
+          "location_code": "1864",
+          "postcode_count": 709
+        },
+        {
+          "outcode": "W1G",
+          "code": "2754",
+          "location_code": "2754",
+          "postcode_count": 706
+        },
+        {
+          "outcode": "W1H",
+          "code": "2755",
+          "location_code": "2755",
+          "postcode_count": 696
+        },
+        {
+          "outcode": "W1D",
+          "code": "2752",
+          "location_code": "2752",
+          "postcode_count": 695
+        },
+        {
+          "outcode": "W1J",
+          "code": "2756",
+          "location_code": "2756",
+          "postcode_count": 690
+        },
+        {
+          "outcode": "W1W",
+          "code": "2761",
+          "location_code": "2761",
+          "postcode_count": 621
+        },
+        {
+          "outcode": "SW1V",
+          "code": "2510",
+          "location_code": "2510",
+          "postcode_count": 573
+        },
+        {
+          "outcode": "W1S",
+          "code": "2758",
+          "location_code": "2758",
+          "postcode_count": 565
+        },
+        {
+          "outcode": "W9",
+          "code": "2769",
+          "location_code": "2769",
+          "postcode_count": 535
+        },
+        {
+          "outcode": "SW1P",
+          "code": "2509",
+          "location_code": "2509",
+          "postcode_count": 480
+        },
+        {
+          "outcode": "NW1",
+          "code": "1855",
+          "location_code": "1855",
+          "postcode_count": 337
+        },
+        {
+          "outcode": "W1B",
+          "code": "2750",
+          "location_code": "2750",
+          "postcode_count": 299
+        },
+        {
+          "outcode": "SW1W",
+          "code": "2511",
+          "location_code": "2511",
+          "postcode_count": 290
+        },
+        {
+          "outcode": "W1T",
+          "code": "2759",
+          "location_code": "2759",
+          "postcode_count": 253
+        },
+        {
+          "outcode": "SW1X",
+          "code": "2512",
+          "location_code": "2512",
+          "postcode_count": 219
+        },
+        {
+          "outcode": "SW1Y",
+          "code": "2513",
+          "location_code": "2513",
+          "postcode_count": 185
+        },
+        {
+          "outcode": "WC2E",
+          "code": "2798",
+          "location_code": "2798",
+          "postcode_count": 173
+        },
+        {
+          "outcode": "W10",
+          "code": "2744",
+          "location_code": "2744",
+          "postcode_count": 170
+        },
+        {
+          "outcode": "SW7",
+          "code": "2520",
+          "location_code": "2520",
+          "postcode_count": 169
+        },
+        {
+          "outcode": "WC2H",
+          "code": "2799",
+          "location_code": "2799",
+          "postcode_count": 164
+        },
+        {
+          "outcode": "WC2N",
+          "code": "2800",
+          "location_code": "2800",
+          "postcode_count": 148
+        },
+        {
+          "outcode": "SW1A",
+          "code": "2506",
+          "location_code": "2506",
+          "postcode_count": 142
+        },
+        {
+          "outcode": "W1C",
+          "code": "2751",
+          "location_code": "2751",
+          "postcode_count": 138
+        },
+        {
+          "outcode": "WC2R",
+          "code": "2801",
+          "location_code": "2801",
+          "postcode_count": 105
+        },
+        {
+          "outcode": "SW1H",
+          "code": "2508",
+          "location_code": "2508",
+          "postcode_count": 92
+        },
+        {
+          "outcode": "SW1E",
+          "code": "2507",
+          "location_code": "2507",
+          "postcode_count": 90
+        },
+        {
+          "outcode": "WC2B",
+          "code": "2797",
+          "location_code": "2797",
+          "postcode_count": 89
+        },
+        {
+          "outcode": "NW6",
+          "code": "1862",
+          "location_code": "1862",
+          "postcode_count": 45
+        },
+        {
+          "outcode": "W11",
+          "code": "2745",
+          "location_code": "2745",
+          "postcode_count": 40
+        },
+        {
+          "outcode": "WC2A",
+          "code": "2796",
+          "location_code": "2796",
+          "postcode_count": 26
+        },
+        {
+          "outcode": "SW3",
+          "code": "2516",
+          "location_code": "2516",
+          "postcode_count": 6
+        },
+        {
+          "outcode": "W1A",
+          "code": "2749",
+          "location_code": "2749",
+          "postcode_count": 4
+        },
+        {
+          "outcode": "EC4Y",
+          "code": "791",
+          "location_code": "791",
+          "postcode_count": 3
+        },
+        {
+          "outcode": "EC4A",
+          "code": "785",
+          "location_code": "785",
+          "postcode_count": 1
+        }
+      ]
+    }
+  ]
+}

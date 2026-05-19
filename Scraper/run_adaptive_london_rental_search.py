@@ -3,9 +3,9 @@ Adaptive London Rental Search Collector
 =======================================
 
 Works around Rightmove's broad-search pagination cap by:
-  1. scraping known borough seed URLs from a text file
+  1. scraping known borough seed URLs from a committed config
   2. identifying borough searches that still hit Rightmove's page cap
-  3. subdividing capped boroughs into postcode outcode searches
+  3. subdividing capped boroughs into precomputed postcode outcode searches
   4. merging and deduplicating the resulting search-stage listings
 
 This produces a merged rental search dataset that can then be passed into the
@@ -15,7 +15,6 @@ existing detail scraper and downstream London clipping pipeline.
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import subprocess
 import sys
@@ -23,21 +22,10 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
 
-import geopandas as gpd
-
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "output"
-DEFAULT_BOROUGHS_PATH = (
-    SCRIPT_DIR.parent
-    / "London Boundary"
-    / "statistical-gis-boundaries-london"
-    / "ESRI"
-    / "London_Borough_Excluding_MHW.shp"
-)
-DEFAULT_SEED_LINKS_FILE = SCRIPT_DIR / "Borough_Links.txt"
-DEFAULT_POSTCODE_CSV = SCRIPT_DIR.parent / "london_postcodes-ons-postcodes-directory-feb22.csv"
-DEFAULT_OUTCODE_MAPPINGS_JSON = SCRIPT_DIR.parent / "Rightmove outcode mappings.json"
+DEFAULT_CONFIG_PATH = SCRIPT_DIR / "config" / "rightmove_london_adaptive_search.json"
 
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -50,21 +38,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Adaptively collect London rental search results across smaller areas.")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Directory for merged outputs.")
     parser.add_argument("--run-dir", help="Directory for intermediate adaptive collector files.")
-    parser.add_argument("--boroughs-path", default=str(DEFAULT_BOROUGHS_PATH), help="London borough shapefile.")
     parser.add_argument(
-        "--seed-links-file",
-        default=str(DEFAULT_SEED_LINKS_FILE),
-        help="Text file containing `Borough: URL` Rightmove borough seed links.",
-    )
-    parser.add_argument(
-        "--postcode-csv",
-        default=str(DEFAULT_POSTCODE_CSV),
-        help="ONS postcode CSV used to derive borough outcodes.",
-    )
-    parser.add_argument(
-        "--outcode-mappings-json",
-        default=str(DEFAULT_OUTCODE_MAPPINGS_JSON),
-        help="Optional Rightmove outcode mapping JSON for validating known outcodes.",
+        "--config",
+        default=str(DEFAULT_CONFIG_PATH),
+        help="JSON config containing borough seed URLs and precomputed outcode child searches.",
     )
     parser.add_argument(
         "--pages",
@@ -128,94 +105,26 @@ def _normalise_borough_name(name):
     return aliases.get(text, text)
 
 
-def _load_borough_codes(boroughs_path, seed_boroughs=None):
-    boroughs_gdf = gpd.read_file(boroughs_path)
+def _load_config(path):
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    boroughs = payload.get("boroughs")
+    if not isinstance(boroughs, list) or not boroughs:
+        raise RuntimeError(f"No borough config entries found in {path}")
+    return payload
+
+
+def _filter_borough_configs(config_payload, seed_boroughs=None):
     allowed = {_normalise_borough_name(value) for value in (seed_boroughs or [])}
-    borough_names = []
-    code_map = {}
-    for _, row in boroughs_gdf.iterrows():
-        name = str(row["NAME"]).strip()
+    boroughs = []
+    for item in config_payload.get("boroughs", []):
+        name = str(item.get("name") or "").strip()
         if not name:
             continue
-        if allowed and _normalise_borough_name(name) not in allowed:
-            continue
-        borough_names.append(name)
-        code_map[name] = str(row["GSS_CODE"]).strip()
-    return sorted(set(borough_names)), code_map
-
-
-def _load_seed_links(path, seed_boroughs=None):
-    allowed = {_normalise_borough_name(value) for value in (seed_boroughs or [])}
-    seed_map = {}
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or ":" not in line:
-            continue
-        name, url = line.split(":", 1)
-        borough_name = name.strip()
-        url = url.strip()
-        normalised = _normalise_borough_name(borough_name)
+        normalised = _normalise_borough_name(name)
         if allowed and normalised not in allowed:
             continue
-        seed_map[borough_name] = {
-            "borough_name": borough_name,
-            "normalised_name": normalised,
-            "search_url": url,
-        }
-    return seed_map
-
-
-def _postcode_outcode(postcode):
-    parts = str(postcode or "").strip().split()
-    return parts[0].upper() if parts else None
-
-
-def _load_rightmove_outcode_mapping(path):
-    path = Path(path)
-    if not path.exists():
-        return None
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, list):
-        return None
-    mapping = {}
-    for item in payload:
-        outcode = str(item.get("outcode") or "").upper().strip()
-        code = item.get("code")
-        if not outcode or code in (None, ""):
-            continue
-        mapping[outcode] = str(code)
-    return mapping
-
-
-def _load_borough_outcodes(postcode_csv_path, borough_code_map, seed_boroughs=None, valid_outcodes=None):
-    allowed = {_normalise_borough_name(value) for value in (seed_boroughs or [])}
-    code_to_name = {code: name for name, code in borough_code_map.items()}
-    borough_outcodes = {name: {} for name in borough_code_map}
-
-    with Path(postcode_csv_path).open(encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        for row in reader:
-            borough_code = str(row.get("oslaua") or "").strip()
-            borough_name = code_to_name.get(borough_code)
-            if not borough_name:
-                continue
-            if allowed and _normalise_borough_name(borough_name) not in allowed:
-                continue
-            if str(row.get("doterm") or "").strip():
-                continue
-            outcode = _postcode_outcode(row.get("pcds") or row.get("pcd"))
-            if not outcode:
-                continue
-            if valid_outcodes is not None and outcode not in valid_outcodes:
-                continue
-            counts = borough_outcodes.setdefault(borough_name, {})
-            counts[outcode] = counts.get(outcode, 0) + 1
-
-    return {
-        borough: [outcode for outcode, _ in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
-        for borough, counts in borough_outcodes.items()
-        if counts
-    }
+        boroughs.append(item)
+    return sorted(boroughs, key=lambda item: item["name"])
 
 
 def _normalise_outcode_identifier(outcode_code):
@@ -328,29 +237,18 @@ def main():
     args = parse_args()
     output_dir = _resolve_path(args.output_dir)
     run_dir = _resolve_path(args.run_dir) if args.run_dir else _default_run_dir(output_dir)
-    boroughs_path = _resolve_path(args.boroughs_path)
-    seed_links_path = _resolve_path(args.seed_links_file)
-    postcode_csv_path = _resolve_path(args.postcode_csv)
-    outcode_mappings_path = _resolve_path(args.outcode_mappings_json)
+    config_path = _resolve_path(args.config)
     run_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    borough_names, borough_code_map = _load_borough_codes(boroughs_path, seed_boroughs=args.seed_borough)
-    seed_links = _load_seed_links(seed_links_path, seed_boroughs=args.seed_borough)
-    rightmove_outcode_mapping = _load_rightmove_outcode_mapping(outcode_mappings_path)
-    borough_outcodes = _load_borough_outcodes(
-        postcode_csv_path,
-        borough_code_map,
-        seed_boroughs=args.seed_borough,
-        valid_outcodes=set(rightmove_outcode_mapping) if rightmove_outcode_mapping else None,
-    )
-
-    if not seed_links:
-        raise RuntimeError("No borough seed links were loaded.")
+    config_payload = _load_config(config_path)
+    borough_configs = _filter_borough_configs(config_payload, seed_boroughs=args.seed_borough)
+    if not borough_configs:
+        raise RuntimeError(f"No borough config entries matched the requested borough filter in {config_path}")
 
     area_records = []
 
-    def collect(query, search_url, depth, borough_name, source_type):
+    def collect(query, search_url, depth, borough_name, source_type, area_config):
         area_slug = _slugify(query)
         area_dir = run_dir / "areas" / f"{depth:02d}-{area_slug}"
         area_output_dir = area_dir / "search_output"
@@ -382,15 +280,16 @@ def main():
             depth == 0
             and args.subdivide_capped_boroughs
             and page_total >= args.pagination_cap
-            and borough_outcodes.get(borough_name)
+            and area_config.get("outcodes")
         ):
             child_records = []
-            outcodes = borough_outcodes[borough_name]
+            outcodes = list(area_config.get("outcodes", []))
             if args.max_outcodes_per_borough:
                 outcodes = outcodes[: args.max_outcodes_per_borough]
-            for outcode in outcodes:
-                outcode_code = rightmove_outcode_mapping.get(outcode) if rightmove_outcode_mapping else None
-                if not outcode_code:
+            for outcode_entry in outcodes:
+                outcode = str(outcode_entry.get("outcode") or "").strip().upper()
+                outcode_code = outcode_entry.get("location_code") or outcode_entry.get("code")
+                if not outcode or not outcode_code:
                     continue
                 child_query = f"{outcode} [{borough_name}]"
                 child_records.extend(
@@ -400,6 +299,7 @@ def main():
                         depth + 1,
                         borough_name,
                         "borough_outcode",
+                        area_config,
                     )
                 )
             if child_records:
@@ -411,18 +311,20 @@ def main():
         return [area_record]
 
     leaf_area_payloads = []
-    for borough_name in borough_names:
-        seed = next((seed for seed_name, seed in seed_links.items() if _normalise_borough_name(seed_name) == _normalise_borough_name(borough_name)), None)
-        if not seed:
-            print(f"Skipping {borough_name}: no seed link in {seed_links_path.name}")
+    for borough_config in borough_configs:
+        borough_name = borough_config["name"]
+        seed_url = borough_config.get("seed_search_url")
+        if not seed_url:
+            print(f"Skipping {borough_name}: no seed_search_url in {config_path.name}")
             continue
         leaf_area_payloads.extend(
             collect(
                 borough_name,
-                seed["search_url"],
+                seed_url,
                 0,
                 borough_name,
                 "borough_seed_link",
+                borough_config,
             )
         )
 
@@ -431,11 +333,11 @@ def main():
     report = {
         "generated_at": datetime.now().isoformat(),
         "run_dir": str(run_dir),
-        "borough_seed_file": str(seed_links_path),
-        "borough_seed_count": len(seed_links),
+        "config_path": str(config_path),
+        "config_generated_at": config_payload.get("generated_at"),
+        "borough_seed_count": len(borough_configs),
         "leaf_area_count": len(leaf_area_payloads),
-        "postcode_outcode_source": str(postcode_csv_path),
-        "rightmove_outcode_mapping_source": str(outcode_mappings_path) if outcode_mappings_path.exists() else None,
+        "config_sources": config_payload.get("sources", {}),
         "areas": [
             {
                 "query": item["query"],
@@ -453,7 +355,10 @@ def main():
             for item in area_records
         ],
         "leaf_areas": [item["query"] for item in leaf_area_payloads],
-        "borough_outcode_counts": {name: len(values) for name, values in borough_outcodes.items()},
+        "borough_outcode_counts": {
+            item["name"]: len(item.get("outcodes", []))
+            for item in borough_configs
+        },
         "merged_search_json": str(merged_json),
         "merged_search_csv": str(merged_csv),
     }
