@@ -49,26 +49,21 @@ jobs:
         id: params
         shell: bash
         run: |
-          clamp_int() {
+          normalise_int() {
             local value="$1"
             local fallback="$2"
-            local min="$3"
-            local max="$4"
             if ! [[ "$value" =~ ^[0-9]+$ ]]; then
               value="$fallback"
             fi
-            if [ "$value" -lt "$min" ]; then
-              value="$min"
-            fi
-            if [ "$value" -gt "$max" ]; then
-              value="$max"
+            if [ "$value" -lt 1 ]; then
+              value="$fallback"
             fi
             echo "$value"
           }
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            pages="$(clamp_int "${{ inputs.pages }}" 2 1 60)"
-            max_results="$(clamp_int "${{ inputs.max_results }}" 40 1 1500)"
+            pages="$(normalise_int "${{ inputs.pages }}" 2)"
+            max_results="$(normalise_int "${{ inputs.max_results }}" 40)"
           else
             pages=12
             max_results=250
