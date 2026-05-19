@@ -170,14 +170,21 @@ def _postcode_outcode(postcode):
     return parts[0].upper() if parts else None
 
 
-def _load_valid_rightmove_outcodes(path):
+def _load_rightmove_outcode_mapping(path):
     path = Path(path)
     if not path.exists():
         return None
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
         return None
-    return {str(item.get("outcode")).upper() for item in payload if item.get("outcode")}
+    mapping = {}
+    for item in payload:
+        outcode = str(item.get("outcode") or "").upper().strip()
+        code = item.get("code")
+        if not outcode or code in (None, ""):
+            continue
+        mapping[outcode] = str(code)
+    return mapping
 
 
 def _load_borough_outcodes(postcode_csv_path, borough_code_map, seed_boroughs=None, valid_outcodes=None):
@@ -211,10 +218,11 @@ def _load_borough_outcodes(postcode_csv_path, borough_code_map, seed_boroughs=No
     }
 
 
-def _build_outcode_search_url(outcode):
+def _build_outcode_search_url(outcode, outcode_code):
     params = {
         "useLocationIdentifier": "true",
-        "locationIdentifier": f"OUTCODE^{outcode}",
+        "locationIdentifier": f"OUTCODE^{outcode_code}",
+        "searchLocation": outcode,
         "rent": "To rent",
         "_includeLetAgreed": "on",
         "index": "0",
@@ -322,12 +330,12 @@ def main():
 
     borough_names, borough_code_map = _load_borough_codes(boroughs_path, seed_boroughs=args.seed_borough)
     seed_links = _load_seed_links(seed_links_path, seed_boroughs=args.seed_borough)
-    valid_rightmove_outcodes = _load_valid_rightmove_outcodes(outcode_mappings_path)
+    rightmove_outcode_mapping = _load_rightmove_outcode_mapping(outcode_mappings_path)
     borough_outcodes = _load_borough_outcodes(
         postcode_csv_path,
         borough_code_map,
         seed_boroughs=args.seed_borough,
-        valid_outcodes=valid_rightmove_outcodes,
+        valid_outcodes=set(rightmove_outcode_mapping) if rightmove_outcode_mapping else None,
     )
 
     if not seed_links:
@@ -374,11 +382,14 @@ def main():
             if args.max_outcodes_per_borough:
                 outcodes = outcodes[: args.max_outcodes_per_borough]
             for outcode in outcodes:
+                outcode_code = rightmove_outcode_mapping.get(outcode) if rightmove_outcode_mapping else None
+                if not outcode_code:
+                    continue
                 child_query = f"{outcode} [{borough_name}]"
                 child_records.extend(
                     collect(
                         child_query,
-                        _build_outcode_search_url(outcode),
+                        _build_outcode_search_url(outcode, outcode_code),
                         depth + 1,
                         borough_name,
                         "borough_outcode",
