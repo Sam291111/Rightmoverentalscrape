@@ -41,9 +41,19 @@ def parse_args():
         default=DEFAULT_LONDON_SEARCH_URL,
         help="Rightmove rental search URL to scrape before clipping to London.",
     )
-    parser.add_argument("--pages", type=int, default=42, help="How many search result pages to scrape.")
+    parser.add_argument(
+        "--pages",
+        type=int,
+        default=0,
+        help="How many search result pages to scrape. Use 0 to keep going until pagination naturally stops.",
+    )
     parser.add_argument("--page-size", type=int, default=24, help="Search pagination step size.")
-    parser.add_argument("--max-results", type=int, default=1000, help="Maximum search-stage listings to keep.")
+    parser.add_argument(
+        "--max-results",
+        type=int,
+        default=0,
+        help="Maximum search-stage listings to keep. Use 0 for no cap.",
+    )
     parser.add_argument("--detail-limit", type=int, help="Optional cap on detail-stage listings.")
     parser.add_argument("--detail-run-dir", help="Optional checkpoint directory for the detail pass.")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Shared output directory.")

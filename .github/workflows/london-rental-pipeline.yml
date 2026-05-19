@@ -7,12 +7,12 @@ on:
         description: Search result pages to scrape
         type: number
         required: false
-        default: 2
+        default: 0
       max_results:
         description: Maximum listings to keep before enrichment
         type: number
         required: false
-        default: 40
+        default: 0
   schedule:
     - cron: "0 6 * * 1,4"
 
@@ -62,11 +62,11 @@ jobs:
           }
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            pages="$(normalise_int "${{ inputs.pages }}" 2)"
-            max_results="$(normalise_int "${{ inputs.max_results }}" 40)"
+            pages="$(normalise_int "${{ inputs.pages }}" 0)"
+            max_results="$(normalise_int "${{ inputs.max_results }}" 0)"
           else
-            pages=12
-            max_results=250
+            pages=0
+            max_results=0
           fi
           echo "pages=$pages" >> "$GITHUB_OUTPUT"
           echo "max_results=$max_results" >> "$GITHUB_OUTPUT"

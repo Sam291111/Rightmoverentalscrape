@@ -50,8 +50,8 @@ def parse_args():
     parser.add_argument(
         "--pages",
         type=int,
-        default=1,
-        help="How many result pages to scrape, starting from the current page or supplied search URL.",
+        default=0,
+        help="How many result pages to scrape. Use 0 to keep going until pagination naturally stops.",
     )
     parser.add_argument(
         "--page-size",
@@ -62,7 +62,7 @@ def parse_args():
     parser.add_argument(
         "--max-results",
         type=int,
-        help="Optional cap on the total number of merged listings to keep.",
+        help="Optional cap on the total number of merged listings to keep. Use 0 for no cap.",
     )
     parser.add_argument(
         "--wait-seconds",
@@ -820,6 +820,9 @@ def main():
     pages_scraped = 0
     stop_reason = "completed_requested_pages"
     last_page_index = None
+    page_limit = args.pages if args.pages and args.pages > 0 else None
+    max_results = args.max_results if args.max_results and args.max_results > 0 else None
+    page_offset = 0
 
     try:
         if args.search_url:
@@ -855,8 +858,8 @@ def main():
         keep_zero_index = "index" in start_query
 
         all_results = {}
-
-        for page_offset in range(args.pages):
+        previous_page_keys = None
+        while page_limit is None or page_offset < page_limit:
             page_index = start_index + (page_offset * args.page_size)
             last_page_index = page_index
             page_url = _build_page_url(start_url, page_index, keep_zero_index)
@@ -919,8 +922,12 @@ def main():
                 by_id.setdefault(key, {})
                 by_id[key] = merge_listing_data(by_id[key], item)
 
+            unique_before_page = len(all_results)
             for key, value in by_id.items():
                 all_results[key] = merge_listing_data(all_results.get(key, {}), value)
+
+            page_keys = tuple(sorted(by_id.keys()))
+            new_unique_count = len(all_results) - unique_before_page
 
             print(
                 f"  API URL: {api_url}\n"
@@ -935,10 +942,23 @@ def main():
                 stop_reason = "empty_page"
                 break
 
-            if args.max_results and len(all_results) >= args.max_results:
-                print(f"  Reached max-results cap of {args.max_results}.")
+            if previous_page_keys is not None and page_keys == previous_page_keys:
+                print("  This page matches the previous page exactly. Stopping pagination.")
+                stop_reason = "repeated_page"
+                break
+
+            if page_offset > 0 and new_unique_count <= 0:
+                print("  This page did not add any new unique listings. Stopping pagination.")
+                stop_reason = "no_new_unique_listings"
+                break
+
+            previous_page_keys = page_keys
+
+            if max_results and len(all_results) >= max_results:
+                print(f"  Reached max-results cap of {max_results}.")
                 stop_reason = "max_results_reached"
                 break
+            page_offset += 1
 
         merged_results = sorted(
             all_results.values(),
@@ -948,8 +968,8 @@ def main():
                 str(item.get("listing_id") or ""),
             ),
         )
-        if args.max_results:
-            merged_results = merged_results[: args.max_results]
+        if max_results:
+            merged_results = merged_results[: max_results]
 
         metadata = {
             "generated_at": datetime.now().isoformat(),
@@ -958,7 +978,7 @@ def main():
             "pages_requested": args.pages,
             "page_size": args.page_size,
             "pages_scraped": pages_scraped,
-            "max_results": args.max_results,
+            "max_results": max_results,
             "results_count": len(merged_results),
             "stop_reason": stop_reason,
             "last_page_index": last_page_index,

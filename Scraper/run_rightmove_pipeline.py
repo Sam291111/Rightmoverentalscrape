@@ -57,12 +57,17 @@ def parse_args():
         help="Which Rightmove market to run. 'sale' keeps the existing behaviour.",
     )
     parser.add_argument("--search-url", help="Rightmove search results URL for the search-stage scraper.")
-    parser.add_argument("--pages", type=int, default=1, help="How many search result pages to scrape.")
+    parser.add_argument(
+        "--pages",
+        type=int,
+        default=0,
+        help="How many search result pages to scrape. Use 0 to keep going until pagination naturally stops.",
+    )
     parser.add_argument("--page-size", type=int, default=24, help="Search pagination step size.")
     parser.add_argument(
         "--max-results",
         type=int,
-        help="Optional cap on how many search-stage listings to keep before enrichment.",
+        help="Optional cap on how many search-stage listings to keep before enrichment. Use 0 for no cap.",
     )
     parser.add_argument(
         "--search-wait-seconds",
@@ -200,7 +205,7 @@ def main():
             "--output-dir",
             str(output_dir),
         ]
-        if args.max_results:
+        if args.max_results is not None:
             search_command.extend(["--max-results", str(args.max_results)])
         if args.search_url:
             search_command.extend(["--search-url", args.search_url])
