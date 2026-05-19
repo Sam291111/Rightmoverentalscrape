@@ -1,0 +1,310 @@
+{
+  "generated_at": "2026-05-19T10:47:30.591043",
+  "source_dataset": "rightmove_cleaned_dataset_20260519_104729.json",
+  "source_meta": {
+    "generated_at": "2026-05-19T10:47:29.850918",
+    "input_files": [
+      "rightmove_rental_enriched_results_20260519_104729.json"
+    ],
+    "rows_input": 40,
+    "rows_output": 40,
+    "duplicates_removed": 0,
+    "market_counts": {
+      "rent": 40
+    },
+    "field_coverage": {
+      "listing_id": {
+        "count": 40,
+        "fraction": 1.0
+      },
+      "listing_url": {
+        "count": 40,
+        "fraction": 1.0
+      },
+      "location": {
+        "count": 40,
+        "fraction": 1.0
+      },
+      "price_amount": {
+        "count": 40,
+        "fraction": 1.0
+      },
+      "price_frequency": {
+        "count": 40,
+        "fraction": 1.0
+      },
+      "property_type": {
+        "count": 40,
+        "fraction": 1.0
+      },
+      "bedrooms": {
+        "count": 40,
+        "fraction": 1.0
+      },
+      "bathrooms": {
+        "count": 39,
+        "fraction": 0.975
+      },
+      "postcode": {
+        "count": 3,
+        "fraction": 0.075
+      },
+      "latitude": {
+        "count": 38,
+        "fraction": 0.95
+      },
+      "longitude": {
+        "count": 38,
+        "fraction": 0.95
+      },
+      "epc_rating": {
+        "count": 6,
+        "fraction": 0.15
+      },
+      "investment_opportunity": {
+        "count": 7,
+        "fraction": 0.175
+      },
+      "luxury": {
+        "count": 13,
+        "fraction": 0.325
+      }
+    }
+  },
+  "boundary_name": "London Euro Region",
+  "rows_input": 40,
+  "rows_with_coordinates": 38,
+  "rows_missing_coordinates": 2,
+  "rows_inside_london": 34,
+  "rows_outside_london": 4,
+  "market_counts": {
+    "rent": 34
+  },
+  "borough_counts": {
+    "Westminster": 2,
+    "Havering": 1,
+    "Islington": 2,
+    "Enfield": 2,
+    "Ealing": 2,
+    "Hammersmith and Fulham": 2,
+    "Tower Hamlets": 3,
+    "Camden": 1,
+    "Sutton": 1,
+    "Hackney": 1,
+    "Waltham Forest": 2,
+    "Lambeth": 2,
+    "Hillingdon": 1,
+    "Harrow": 1,
+    "Newham": 1,
+    "Wandsworth": 2,
+    "Croydon": 1,
+    "Southwark": 1,
+    "Greenwich": 1,
+    "Hounslow": 1,
+    "Brent": 1,
+    "Kensington and Chelsea": 1,
+    "Kingston upon Thames": 1,
+    "Barnet": 1
+  },
+  "price_summary": {
+    "count": 34,
+    "median": 2475.0,
+    "mean": 2611.3529411764707,
+    "min": 1400.0,
+    "max": 4750.0
+  },
+  "borough_summary": [
+    {
+      "london_borough": "Tower Hamlets",
+      "count": 3,
+      "median_price": 2500.0,
+      "mean_price": 2483.3333333333335,
+      "min_price": 2450.0,
+      "max_price": 2500.0
+    },
+    {
+      "london_borough": "Ealing",
+      "count": 2,
+      "median_price": 2175.0,
+      "mean_price": 2175.0,
+      "min_price": 2000.0,
+      "max_price": 2350.0
+    },
+    {
+      "london_borough": "Enfield",
+      "count": 2,
+      "median_price": 1925.0,
+      "mean_price": 1925.0,
+      "min_price": 1850.0,
+      "max_price": 2000.0
+    },
+    {
+      "london_borough": "Hammersmith and Fulham",
+      "count": 2,
+      "median_price": 3800.0,
+      "mean_price": 3800.0,
+      "min_price": 3250.0,
+      "max_price": 4350.0
+    },
+    {
+      "london_borough": "Islington",
+      "count": 2,
+      "median_price": 4250.0,
+      "mean_price": 4250.0,
+      "min_price": 4000.0,
+      "max_price": 4500.0
+    },
+    {
+      "london_borough": "Lambeth",
+      "count": 2,
+      "median_price": 2923.0,
+      "mean_price": 2923.0,
+      "min_price": 2847.0,
+      "max_price": 2999.0
+    },
+    {
+      "london_borough": "Waltham Forest",
+      "count": 2,
+      "median_price": 1800.0,
+      "mean_price": 1800.0,
+      "min_price": 1500.0,
+      "max_price": 2100.0
+    },
+    {
+      "london_borough": "Wandsworth",
+      "count": 2,
+      "median_price": 2375.0,
+      "mean_price": 2375.0,
+      "min_price": 2250.0,
+      "max_price": 2500.0
+    },
+    {
+      "london_borough": "Westminster",
+      "count": 2,
+      "median_price": 3750.0,
+      "mean_price": 3750.0,
+      "min_price": 2750.0,
+      "max_price": 4750.0
+    },
+    {
+      "london_borough": "Barnet",
+      "count": 1,
+      "median_price": 1850.0,
+      "mean_price": 1850.0,
+      "min_price": 1850.0,
+      "max_price": 1850.0
+    },
+    {
+      "london_borough": "Brent",
+      "count": 1,
+      "median_price": 1700.0,
+      "mean_price": 1700.0,
+      "min_price": 1700.0,
+      "max_price": 1700.0
+    },
+    {
+      "london_borough": "Camden",
+      "count": 1,
+      "median_price": 2400.0,
+      "mean_price": 2400.0,
+      "min_price": 2400.0,
+      "max_price": 2400.0
+    },
+    {
+      "london_borough": "Croydon",
+      "count": 1,
+      "median_price": 1400.0,
+      "mean_price": 1400.0,
+      "min_price": 1400.0,
+      "max_price": 1400.0
+    },
+    {
+      "london_borough": "Greenwich",
+      "count": 1,
+      "median_price": 1700.0,
+      "mean_price": 1700.0,
+      "min_price": 1700.0,
+      "max_price": 1700.0
+    },
+    {
+      "london_borough": "Hackney",
+      "count": 1,
+      "median_price": 2600.0,
+      "mean_price": 2600.0,
+      "min_price": 2600.0,
+      "max_price": 2600.0
+    },
+    {
+      "london_borough": "Harrow",
+      "count": 1,
+      "median_price": 2250.0,
+      "mean_price": 2250.0,
+      "min_price": 2250.0,
+      "max_price": 2250.0
+    },
+    {
+      "london_borough": "Havering",
+      "count": 1,
+      "median_price": 2400.0,
+      "mean_price": 2400.0,
+      "min_price": 2400.0,
+      "max_price": 2400.0
+    },
+    {
+      "london_borough": "Hillingdon",
+      "count": 1,
+      "median_price": 2700.0,
+      "mean_price": 2700.0,
+      "min_price": 2700.0,
+      "max_price": 2700.0
+    },
+    {
+      "london_borough": "Hounslow",
+      "count": 1,
+      "median_price": 2800.0,
+      "mean_price": 2800.0,
+      "min_price": 2800.0,
+      "max_price": 2800.0
+    },
+    {
+      "london_borough": "Kensington and Chelsea",
+      "count": 1,
+      "median_price": 2600.0,
+      "mean_price": 2600.0,
+      "min_price": 2600.0,
+      "max_price": 2600.0
+    },
+    {
+      "london_borough": "Kingston upon Thames",
+      "count": 1,
+      "median_price": 2100.0,
+      "mean_price": 2100.0,
+      "min_price": 2100.0,
+      "max_price": 2100.0
+    },
+    {
+      "london_borough": "Newham",
+      "count": 1,
+      "median_price": 3600.0,
+      "mean_price": 3600.0,
+      "min_price": 3600.0,
+      "max_price": 3600.0
+    },
+    {
+      "london_borough": "Southwark",
+      "count": 1,
+      "median_price": 3390.0,
+      "mean_price": 3390.0,
+      "min_price": 3390.0,
+      "max_price": 3390.0
+    },
+    {
+      "london_borough": "Sutton",
+      "count": 1,
+      "median_price": 1850.0,
+      "mean_price": 1850.0,
+      "min_price": 1850.0,
+      "max_price": 1850.0
+    }
+  ]
+}
