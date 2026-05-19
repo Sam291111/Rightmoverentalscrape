@@ -20,6 +20,8 @@ import argparse
 import csv
 import json
 import re
+import shutil
+import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
@@ -182,6 +184,43 @@ def parse_args():
     return parser.parse_args()
 
 
+def _detect_chrome_binary_and_major_version():
+    candidates = []
+    env_path = (
+        shutil.which("chrome")
+        or shutil.which("google-chrome")
+        or shutil.which("google-chrome-stable")
+        or shutil.which("chromium")
+        or shutil.which("chromium-browser")
+    )
+    for value in [
+        env_path,
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    ]:
+        if value and value not in candidates:
+            candidates.append(value)
+
+    for binary in candidates:
+        try:
+            completed = subprocess.run(
+                [binary, "--version"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except Exception:
+            continue
+        version_text = (completed.stdout or completed.stderr or "").strip()
+        match = re.search(r"(\d+)\.", version_text)
+        if match:
+            return binary, int(match.group(1))
+    return None, None
+
+
 def setup_browser(block_images=True, *, headless=False, user_data_dir=None):
     options = uc.ChromeOptions()
     options.add_argument("--start-maximized")
@@ -191,7 +230,10 @@ def setup_browser(block_images=True, *, headless=False, user_data_dir=None):
     if user_data_dir:
         options.add_argument(f"--user-data-dir={user_data_dir}")
     options.page_load_strategy = "eager"
-    driver = uc.Chrome(options=options, version_main=None)
+    chrome_binary, chrome_major_version = _detect_chrome_binary_and_major_version()
+    if chrome_binary:
+        options.binary_location = chrome_binary
+    driver = uc.Chrome(options=options, version_main=chrome_major_version)
     if block_images:
         _enable_network_blocking(driver)
     return driver
