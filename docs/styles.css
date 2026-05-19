@@ -132,6 +132,51 @@ body::before {
   margin-bottom: 20px;
 }
 
+.tab-bar {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 250, 244, 0.74);
+  box-shadow: var(--shadow);
+}
+
+.tab-button,
+.action-button {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.tab-button {
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.tab-button:hover,
+.tab-button:focus-visible {
+  background: rgba(37, 95, 90, 0.1);
+  color: var(--teal);
+}
+
+.tab-button.is-active {
+  background: var(--teal);
+  color: #fff9f2;
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.is-active {
+  display: block;
+}
+
 .panel-header {
   display: flex;
   justify-content: space-between;
@@ -156,6 +201,10 @@ body::before {
 
 .control-grid {
   justify-content: end;
+}
+
+.dataset-control-grid {
+  margin-bottom: 18px;
 }
 
 .control {
@@ -201,6 +250,10 @@ select {
   background: rgba(255, 255, 255, 0.66);
 }
 
+.dataset-table-wrap {
+  margin-top: 14px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -233,6 +286,12 @@ tbody tr:hover {
   margin-bottom: 18px;
 }
 
+.dataset-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .segment-pill {
   padding: 10px 14px;
   border-radius: 999px;
@@ -240,6 +299,38 @@ tbody tr:hover {
   color: var(--teal);
   border: 1px solid rgba(37, 95, 90, 0.14);
   font-size: 0.92rem;
+}
+
+.action-button {
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff8f3;
+  box-shadow: 0 12px 24px rgba(184, 79, 45, 0.18);
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.action-button:hover,
+.action-button:focus-visible {
+  background: var(--accent-deep);
+  transform: translateY(-1px);
+}
+
+.button-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.dataset-link {
+  color: var(--teal);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.dataset-link:hover,
+.dataset-link:focus-visible {
+  text-decoration: underline;
 }
 
 .is-loading {

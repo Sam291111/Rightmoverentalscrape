@@ -409,6 +409,93 @@ def _write_csv(path, rows):
             writer.writerow(row)
 
 
+def _json_value(value):
+    if pd.isna(value):
+        return None
+    return value
+
+
+def _listings_payload(df):
+    listing_fields = [
+        "run_timestamp",
+        "run_date",
+        "source_run_file",
+        "listing_id",
+        "listing_url",
+        "display_address",
+        "location",
+        "postcode",
+        "london_borough",
+        "price_amount",
+        "price_frequency",
+        "price_text",
+        "property_type",
+        "property_type_category",
+        "bedrooms",
+        "bedroom_category",
+        "bathrooms",
+        "deposit_amount",
+        "deposit_text",
+        "deposit_category",
+        "furnish_type",
+        "furnish_type_category",
+        "let_type",
+        "let_type_category",
+        "build_to_rent_category",
+        "student_category",
+        "price_reduced_category",
+        "zero_deposit_category",
+        "online_viewings_category",
+        "pets_category",
+        "bills_category",
+        "luxury_category",
+        "investment_opportunity_category",
+        "latitude",
+        "longitude",
+    ]
+
+    rows = []
+    for record in df[listing_fields].to_dict(orient="records"):
+        rows.append({key: _json_value(value) for key, value in record.items()})
+
+    dimension_values = {
+        "property_type": sorted({str(value) for value in df["property_type_category"].dropna().tolist() if str(value).strip()}),
+        "bedrooms": sorted({str(value) for value in df["bedroom_category"].dropna().tolist() if str(value).strip()}),
+        "build_to_rent": sorted({str(value) for value in df["build_to_rent_category"].dropna().tolist() if str(value).strip()}),
+        "student_suitable": sorted({str(value) for value in df["student_category"].dropna().tolist() if str(value).strip()}),
+        "price_reduced": sorted({str(value) for value in df["price_reduced_category"].dropna().tolist() if str(value).strip()}),
+        "deposit": sorted({str(value) for value in df["deposit_category"].dropna().tolist() if str(value).strip()}),
+        "zero_deposit": sorted({str(value) for value in df["zero_deposit_category"].dropna().tolist() if str(value).strip()}),
+        "online_viewings": sorted({str(value) for value in df["online_viewings_category"].dropna().tolist() if str(value).strip()}),
+        "pets": sorted({str(value) for value in df["pets_category"].dropna().tolist() if str(value).strip()}),
+        "bills": sorted({str(value) for value in df["bills_category"].dropna().tolist() if str(value).strip()}),
+        "luxury": sorted({str(value) for value in df["luxury_category"].dropna().tolist() if str(value).strip()}),
+        "investment_opportunity": sorted({str(value) for value in df["investment_opportunity_category"].dropna().tolist() if str(value).strip()}),
+        "furnish_type": sorted({str(value) for value in df["furnish_type_category"].dropna().tolist() if str(value).strip()}),
+        "let_type": sorted({str(value) for value in df["let_type_category"].dropna().tolist() if str(value).strip()}),
+    }
+
+    return {
+        "meta": {
+            "generated_at": datetime.now().isoformat(),
+            "row_count": len(rows),
+        },
+        "filters": {
+            "runs": [
+                {
+                    "run_timestamp": row["run_timestamp"],
+                    "label": row["run_timestamp"],
+                }
+                for row in sorted(df[["run_timestamp"]].drop_duplicates().to_dict(orient="records"), key=lambda item: item["run_timestamp"])
+            ],
+            "boroughs": sorted({str(value) for value in df["london_borough"].dropna().tolist() if str(value).strip() and str(value) != "Unknown"}),
+            "dimensions": list(dimension_values.keys()),
+            "dimension_values": dimension_values,
+        },
+        "rows": rows,
+    }
+
+
 def _dashboard_payload(history):
     runs = history["runs"]
     borough_stats = history["borough_stats"]
@@ -490,6 +577,7 @@ def main():
     category_csv = output_dir / "rightmove_london_category_stats.csv"
     borough_category_csv = output_dir / "rightmove_london_borough_category_stats.csv"
     dashboard_json = pages_data_dir / "dashboard.json"
+    listings_json = pages_data_dir / "listings.json"
 
     _write_json(json_path, history)
     _write_csv(runs_csv, history["runs"])
@@ -497,6 +585,7 @@ def main():
     _write_csv(category_csv, history["category_stats"])
     _write_csv(borough_category_csv, history["borough_category_stats"])
     _write_json(dashboard_json, _dashboard_payload(history))
+    _write_json(listings_json, _listings_payload(df))
 
     print("\nSaved London history outputs:")
     print(f"  JSON: {json_path}")
@@ -505,6 +594,7 @@ def main():
     print(f"  Category CSV: {category_csv}")
     print(f"  Borough+category CSV: {borough_category_csv}")
     print(f"  Pages JSON: {dashboard_json}")
+    print(f"  Pages listings JSON: {listings_json}")
     print(f"  Runs: {history['meta']['run_count']}")
     print(f"  Listing rows: {history['meta']['listing_rows']}")
 

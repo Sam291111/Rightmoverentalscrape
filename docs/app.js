@@ -6,24 +6,68 @@ const METRICS = {
   mean_deposit: { label: "Mean deposit", format: formatCurrency },
 };
 
+const DATASET_DIMENSIONS = {
+  property_type: { label: "Property type", field: "property_type_category" },
+  bedrooms: { label: "Bedrooms", field: "bedroom_category" },
+  build_to_rent: { label: "Build to rent", field: "build_to_rent_category" },
+  student_suitable: { label: "Student suitable", field: "student_category" },
+  price_reduced: { label: "Price reduced", field: "price_reduced_category" },
+  deposit: { label: "Deposit", field: "deposit_category" },
+  zero_deposit: { label: "Zero deposit", field: "zero_deposit_category" },
+  online_viewings: { label: "Online viewings", field: "online_viewings_category" },
+  pets: { label: "Pets", field: "pets_category" },
+  bills: { label: "Bills", field: "bills_category" },
+  luxury: { label: "Luxury", field: "luxury_category" },
+  investment_opportunity: { label: "Investment opportunity", field: "investment_opportunity_category" },
+  furnish_type: { label: "Furnish type", field: "furnish_type_category" },
+  let_type: { label: "Let type", field: "let_type_category" },
+};
+
 const state = {
-  data: null,
+  dashboard: null,
+  listings: null,
   charts: {},
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    const response = await fetch("./data/dashboard.json", { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`Failed to load dashboard data (${response.status})`);
+    const [dashboardResponse, listingsResponse] = await Promise.all([
+      fetch("./data/dashboard.json", { cache: "no-store" }),
+      fetch("./data/listings.json", { cache: "no-store" }),
+    ]);
+
+    if (!dashboardResponse.ok) {
+      throw new Error(`Failed to load dashboard data (${dashboardResponse.status})`);
     }
-    state.data = await response.json();
+    if (!listingsResponse.ok) {
+      throw new Error(`Failed to load listing data (${listingsResponse.status})`);
+    }
+
+    state.dashboard = await dashboardResponse.json();
+    state.listings = await listingsResponse.json();
+
+    initialiseTabs();
     initialiseControls();
     renderAll();
   } catch (error) {
     renderError(error);
   }
 });
+
+function initialiseTabs() {
+  const buttons = [...document.querySelectorAll(".tab-button")];
+  for (const button of buttons) {
+    button.addEventListener("click", () => {
+      const targetId = button.dataset.tabTarget;
+      for (const other of buttons) {
+        other.classList.toggle("is-active", other === button);
+      }
+      for (const panel of document.querySelectorAll(".tab-panel")) {
+        panel.classList.toggle("is-active", panel.id === targetId);
+      }
+    });
+  }
+}
 
 function initialiseControls() {
   fillSelect(
@@ -53,42 +97,59 @@ function initialiseControls() {
   fillSelect(
     document.querySelector("#segment-borough-select"),
     [{ value: "__all__", label: "All London" }].concat(
-      state.data.filters.boroughs.map((borough) => ({ value: borough, label: borough })),
+      state.dashboard.filters.boroughs.map((borough) => ({ value: borough, label: borough })),
     ),
     "__all__",
   );
   fillSelect(
     document.querySelector("#segment-dimension-select"),
-    state.data.filters.dimensions.map((dimension) => ({
+    state.dashboard.filters.dimensions.map((dimension) => ({
       value: dimension,
       label: prettifyDimension(dimension),
     })),
     "property_type",
   );
 
-  document
-    .querySelector("#segment-dimension-select")
-    .addEventListener("change", syncSegmentValuesAndRender);
-  document
-    .querySelector("#run-metric-select")
-    .addEventListener("change", () => renderRunTrend());
-  document
-    .querySelector("#borough-metric-select")
-    .addEventListener("change", () => renderLatestBoroughs());
-  document
-    .querySelector("#borough-limit-select")
-    .addEventListener("change", () => renderLatestBoroughs());
-  document
-    .querySelector("#segment-borough-select")
-    .addEventListener("change", () => renderSegmentExplorer());
-  document
-    .querySelector("#segment-value-select")
-    .addEventListener("change", () => renderSegmentExplorer());
-  document
-    .querySelector("#segment-metric-select")
-    .addEventListener("change", () => renderSegmentExplorer());
+  fillSelect(
+    document.querySelector("#dataset-run-select"),
+    [{ value: "__all__", label: "All runs" }].concat(
+      state.listings.filters.runs
+        .slice()
+        .reverse()
+        .map((run) => ({ value: run.run_timestamp, label: formatRunLabel(run.run_timestamp) })),
+    ),
+    "__all__",
+  );
+  fillSelect(
+    document.querySelector("#dataset-borough-select"),
+    [{ value: "__all__", label: "All boroughs" }].concat(
+      state.listings.filters.boroughs.map((borough) => ({ value: borough, label: borough })),
+    ),
+    "__all__",
+  );
+  fillSelect(
+    document.querySelector("#dataset-dimension-select"),
+    Object.entries(DATASET_DIMENSIONS).map(([value, meta]) => ({ value, label: meta.label })),
+    "property_type",
+  );
+
+  document.querySelector("#segment-dimension-select").addEventListener("change", syncSegmentValuesAndRender);
+  document.querySelector("#run-metric-select").addEventListener("change", renderRunTrend);
+  document.querySelector("#borough-metric-select").addEventListener("change", renderLatestBoroughs);
+  document.querySelector("#borough-limit-select").addEventListener("change", renderLatestBoroughs);
+  document.querySelector("#segment-borough-select").addEventListener("change", renderSegmentExplorer);
+  document.querySelector("#segment-value-select").addEventListener("change", renderSegmentExplorer);
+  document.querySelector("#segment-metric-select").addEventListener("change", renderSegmentExplorer);
+
+  document.querySelector("#dataset-dimension-select").addEventListener("change", syncDatasetValuesAndRender);
+  document.querySelector("#dataset-run-select").addEventListener("change", renderDatasetTable);
+  document.querySelector("#dataset-borough-select").addEventListener("change", renderDatasetTable);
+  document.querySelector("#dataset-value-select").addEventListener("change", renderDatasetTable);
+  document.querySelector("#dataset-limit-select").addEventListener("change", renderDatasetTable);
+  document.querySelector("#dataset-download-button").addEventListener("click", downloadDatasetCsv);
 
   syncSegmentValuesAndRender();
+  syncDatasetValuesAndRender();
 }
 
 function fillSelect(select, options, defaultValue) {
@@ -106,8 +167,8 @@ function fillSelect(select, options, defaultValue) {
 
 function syncSegmentValuesAndRender() {
   const dimension = document.querySelector("#segment-dimension-select").value;
-  const values = state.data.filters.dimension_values[dimension] || [];
-  const preferredValue = pickDefaultSegmentValue(dimension, values);
+  const values = state.dashboard.filters.dimension_values[dimension] || [];
+  const preferredValue = pickDefaultValue(dimension, values);
   fillSelect(
     document.querySelector("#segment-value-select"),
     values.map((value) => ({ value, label: value })),
@@ -116,9 +177,21 @@ function syncSegmentValuesAndRender() {
   renderSegmentExplorer();
 }
 
-function pickDefaultSegmentValue(dimension, values) {
+function syncDatasetValuesAndRender() {
+  const dimension = document.querySelector("#dataset-dimension-select").value;
+  const values = state.listings.filters.dimension_values[dimension] || [];
+  const preferredValue = pickDefaultValue(dimension, values, "__all__");
+  fillSelect(
+    document.querySelector("#dataset-value-select"),
+    [{ value: "__all__", label: "All values" }].concat(values.map((value) => ({ value, label: value }))),
+    preferredValue,
+  );
+  renderDatasetTable();
+}
+
+function pickDefaultValue(dimension, values, fallback = null) {
   if (!values.length) {
-    return "";
+    return fallback ?? "";
   }
   const priority = {
     property_type: "Flat",
@@ -128,6 +201,9 @@ function pickDefaultSegmentValue(dimension, values) {
     luxury: "Luxury",
     investment_opportunity: "Investment opportunity",
   };
+  if (fallback !== null) {
+    return values.includes(priority[dimension]) ? priority[dimension] : fallback;
+  }
   return values.includes(priority[dimension]) ? priority[dimension] : values[0];
 }
 
@@ -136,11 +212,12 @@ function renderAll() {
   renderRunTrend();
   renderLatestBoroughs();
   renderSegmentExplorer();
+  renderDatasetTable();
 }
 
 function renderSummary() {
-  const meta = state.data.meta;
-  const latestRun = state.data.overview.latest_run;
+  const meta = state.dashboard.meta;
+  const latestRun = state.dashboard.overview.latest_run;
   document.querySelector("#latest-run-label").textContent = formatRunLabel(meta.latest_run_timestamp);
   document.querySelector("#generated-at-label").textContent = formatDateTime(meta.generated_at);
   document.querySelector("#runs-captured").textContent = formatNumber(meta.run_count, 0);
@@ -151,17 +228,15 @@ function renderSummary() {
 
 function renderRunTrend() {
   const metric = document.querySelector("#run-metric-select").value;
-  const series = state.data.series.runs;
-  const labels = series.map((row) => formatRunLabel(row.run_timestamp));
-  const data = series.map((row) => row[metric]);
+  const series = state.dashboard.series.runs;
   state.charts.runTrend = renderChart(state.charts.runTrend, "#run-trend-chart", {
     type: "line",
     data: {
-      labels,
+      labels: series.map((row) => formatRunLabel(row.run_timestamp)),
       datasets: [
         {
           label: METRICS[metric].label,
-          data,
+          data: series.map((row) => row[metric]),
           borderColor: "#b84f2d",
           backgroundColor: "rgba(184, 79, 45, 0.18)",
           borderWidth: 3,
@@ -179,7 +254,7 @@ function renderRunTrend() {
 function renderLatestBoroughs() {
   const metric = document.querySelector("#borough-metric-select").value;
   const limit = Number(document.querySelector("#borough-limit-select").value);
-  const rows = [...state.data.latest.borough_stats]
+  const rows = [...state.dashboard.latest.borough_stats]
     .filter((row) => row.london_borough && row.london_borough !== "Unknown")
     .sort((left, right) => (right[metric] ?? -Infinity) - (left[metric] ?? -Infinity))
     .slice(0, limit);
@@ -211,8 +286,7 @@ function renderLatestBoroughs() {
     },
   });
 
-  const tbody = document.querySelector("#borough-table-body");
-  tbody.innerHTML = rows
+  document.querySelector("#borough-table-body").innerHTML = rows
     .map(
       (row) => `
         <tr>
@@ -233,11 +307,11 @@ function renderSegmentExplorer() {
   const usingAllLondon = borough === "__all__";
 
   const trendSource = usingAllLondon
-    ? state.data.series.category_stats
-    : state.data.series.borough_category_stats;
+    ? state.dashboard.series.category_stats
+    : state.dashboard.series.borough_category_stats;
   const latestSource = usingAllLondon
-    ? state.data.latest.category_stats
-    : state.data.latest.borough_category_stats;
+    ? state.dashboard.latest.category_stats
+    : state.dashboard.latest.borough_category_stats;
 
   const trendRows = trendSource
     .filter((row) => row.dimension === dimension)
@@ -285,8 +359,7 @@ function renderSegmentExplorer() {
     ),
   ].join("");
 
-  const tbody = document.querySelector("#segment-table-body");
-  tbody.innerHTML = latestRows
+  document.querySelector("#segment-table-body").innerHTML = latestRows
     .map(
       (row) => `
         <tr>
@@ -299,12 +372,135 @@ function renderSegmentExplorer() {
     .join("");
 }
 
+function getFilteredDatasetRows() {
+  const runValue = document.querySelector("#dataset-run-select").value;
+  const boroughValue = document.querySelector("#dataset-borough-select").value;
+  const dimension = document.querySelector("#dataset-dimension-select").value;
+  const selectedValue = document.querySelector("#dataset-value-select").value;
+  const dimensionField = DATASET_DIMENSIONS[dimension].field;
+
+  return state.listings.rows.filter((row) => {
+    if (runValue !== "__all__" && row.run_timestamp !== runValue) {
+      return false;
+    }
+    if (boroughValue !== "__all__" && row.london_borough !== boroughValue) {
+      return false;
+    }
+    if (selectedValue !== "__all__" && row[dimensionField] !== selectedValue) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function renderDatasetTable() {
+  const rows = getFilteredDatasetRows();
+  const limit = Number(document.querySelector("#dataset-limit-select").value);
+  const visibleRows = rows
+    .slice()
+    .sort((left, right) => right.run_timestamp.localeCompare(left.run_timestamp))
+    .slice(0, limit);
+
+  const runValue = document.querySelector("#dataset-run-select").value;
+  const boroughValue = document.querySelector("#dataset-borough-select").value;
+  const dimension = document.querySelector("#dataset-dimension-select").value;
+  const selectedValue = document.querySelector("#dataset-value-select").value;
+
+  document.querySelector("#dataset-summary").innerHTML = [
+    makePill(`Run: ${runValue === "__all__" ? "All runs" : formatRunLabel(runValue)}`),
+    makePill(`Borough: ${boroughValue === "__all__" ? "All boroughs" : boroughValue}`),
+    makePill(`Filter: ${DATASET_DIMENSIONS[dimension].label}`),
+    makePill(`Value: ${selectedValue === "__all__" ? "All values" : selectedValue}`),
+    makePill(`Rows matched: ${formatNumber(rows.length, 0)}`),
+    makePill(`Rows shown: ${formatNumber(Math.min(rows.length, limit), 0)}`),
+  ].join("");
+
+  document.querySelector("#dataset-table-body").innerHTML = visibleRows
+    .map(
+      (row) => `
+        <tr>
+          <td>${escapeHtml(formatRunLabel(row.run_timestamp))}</td>
+          <td>${escapeHtml(row.london_borough || "Unknown")}</td>
+          <td>${escapeHtml(row.display_address || row.location || "Unknown")}</td>
+          <td>${formatCurrency(row.price_amount)}</td>
+          <td>${escapeHtml(row.property_type_category || row.property_type || "Unknown")}</td>
+          <td>${escapeHtml(row.bedroom_category || "Unknown")}</td>
+          <td>${escapeHtml(row.deposit_category || "Unknown")}</td>
+          <td>${escapeHtml(buildTagSummary(row))}</td>
+          <td>${row.listing_url ? `<a class="dataset-link" href="${escapeAttribute(row.listing_url)}" target="_blank" rel="noreferrer">Open</a>` : "N/A"}</td>
+        </tr>
+      `,
+    )
+    .join("");
+}
+
+function buildTagSummary(row) {
+  const tags = [];
+  for (const field of [
+    "build_to_rent_category",
+    "student_category",
+    "price_reduced_category",
+    "zero_deposit_category",
+    "online_viewings_category",
+    "luxury_category",
+    "investment_opportunity_category",
+  ]) {
+    if (row[field] && !String(row[field]).startsWith("Not ") && row[field] !== "Unknown" && row[field] !== "No online viewing flag") {
+      tags.push(row[field]);
+    }
+  }
+  return tags.length ? tags.join(" · ") : "No highlighted tags";
+}
+
+function downloadDatasetCsv() {
+  const rows = getFilteredDatasetRows();
+  const headers = [
+    "run_timestamp",
+    "run_date",
+    "london_borough",
+    "display_address",
+    "location",
+    "postcode",
+    "price_amount",
+    "price_frequency",
+    "property_type_category",
+    "bedroom_category",
+    "bathrooms",
+    "deposit_amount",
+    "deposit_category",
+    "furnish_type_category",
+    "let_type_category",
+    "build_to_rent_category",
+    "student_category",
+    "price_reduced_category",
+    "zero_deposit_category",
+    "online_viewings_category",
+    "pets_category",
+    "bills_category",
+    "luxury_category",
+    "investment_opportunity_category",
+    "listing_url",
+  ];
+  const lines = [headers.join(",")];
+  for (const row of rows) {
+    lines.push(headers.map((header) => csvEscape(row[header])).join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "london-rental-filtered-data.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function renderChart(existingChart, selector, config) {
   if (existingChart) {
     existingChart.destroy();
   }
-  const canvas = document.querySelector(selector);
-  return new Chart(canvas, config);
+  return new Chart(document.querySelector(selector), config);
 }
 
 function chartOptions(valueFormatter) {
@@ -409,6 +605,14 @@ function makePill(text) {
   return `<span class="segment-pill">${escapeHtml(text)}</span>`;
 }
 
+function csvEscape(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  const text = String(value).replaceAll('"', '""');
+  return `"${text}"`;
+}
+
 function escapeHtml(text) {
   return String(text)
     .replaceAll("&", "&amp;")
@@ -416,6 +620,13 @@ function escapeHtml(text) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function escapeAttribute(text) {
+  return String(text)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;");
 }
 
 function renderError(error) {

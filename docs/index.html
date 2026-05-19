@@ -42,123 +42,190 @@
       </header>
 
       <main>
-        <section class="summary-grid" id="summary-grid">
-          <article class="summary-card">
-            <span class="summary-label">Runs captured</span>
-            <strong class="summary-value" id="runs-captured">-</strong>
-          </article>
-          <article class="summary-card">
-            <span class="summary-label">Latest listings</span>
-            <strong class="summary-value" id="latest-listings">-</strong>
-          </article>
-          <article class="summary-card">
-            <span class="summary-label">Latest median price</span>
-            <strong class="summary-value" id="latest-median-price">-</strong>
-          </article>
-          <article class="summary-card">
-            <span class="summary-label">Latest mean price</span>
-            <strong class="summary-value" id="latest-mean-price">-</strong>
-          </article>
-        </section>
+        <nav class="tab-bar" aria-label="Dashboard sections">
+          <button class="tab-button is-active" type="button" data-tab-target="analytics-panel">Analytics</button>
+          <button class="tab-button" type="button" data-tab-target="dataset-panel">Dataset</button>
+        </nav>
 
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">Trend Line</p>
-              <h2>London-wide trend across runs</h2>
-            </div>
-            <label class="control">
-              <span>Metric</span>
-              <select id="run-metric-select"></select>
-            </label>
-          </div>
-          <div class="chart-wrap">
-            <canvas id="run-trend-chart" aria-label="London rental trend chart"></canvas>
-          </div>
-        </section>
+        <div id="analytics-panel" class="tab-panel is-active">
+          <section class="summary-grid" id="summary-grid">
+            <article class="summary-card">
+              <span class="summary-label">Runs captured</span>
+              <strong class="summary-value" id="runs-captured">-</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-label">Latest listings</span>
+              <strong class="summary-value" id="latest-listings">-</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-label">Latest median price</span>
+              <strong class="summary-value" id="latest-median-price">-</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-label">Latest mean price</span>
+              <strong class="summary-value" id="latest-mean-price">-</strong>
+            </article>
+          </section>
 
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">Borough Snapshot</p>
-              <h2>Latest run by borough</h2>
-            </div>
-            <div class="control-row">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">Trend Line</p>
+                <h2>London-wide trend across runs</h2>
+              </div>
               <label class="control">
                 <span>Metric</span>
-                <select id="borough-metric-select"></select>
-              </label>
-              <label class="control">
-                <span>Show</span>
-                <select id="borough-limit-select">
-                  <option value="8">Top 8</option>
-                  <option value="12">Top 12</option>
-                  <option value="33">All boroughs</option>
-                </select>
+                <select id="run-metric-select"></select>
               </label>
             </div>
-          </div>
-          <div class="borough-layout">
-            <div class="chart-wrap borough-chart-wrap">
-              <canvas id="borough-chart" aria-label="Latest borough comparison chart"></canvas>
+            <div class="chart-wrap">
+              <canvas id="run-trend-chart" aria-label="London rental trend chart"></canvas>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">Borough Snapshot</p>
+                <h2>Latest run by borough</h2>
+              </div>
+              <div class="control-row">
+                <label class="control">
+                  <span>Metric</span>
+                  <select id="borough-metric-select"></select>
+                </label>
+                <label class="control">
+                  <span>Show</span>
+                  <select id="borough-limit-select">
+                    <option value="8">Top 8</option>
+                    <option value="12">Top 12</option>
+                    <option value="33">All boroughs</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div class="borough-layout">
+              <div class="chart-wrap borough-chart-wrap">
+                <canvas id="borough-chart" aria-label="Latest borough comparison chart"></canvas>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Borough</th>
+                      <th id="borough-table-metric-label">Metric</th>
+                      <th>Listings</th>
+                    </tr>
+                  </thead>
+                  <tbody id="borough-table-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">Segment Explorer</p>
+                <h2>Compare tags and property types across time</h2>
+              </div>
+              <div class="control-grid">
+                <label class="control">
+                  <span>Geography</span>
+                  <select id="segment-borough-select"></select>
+                </label>
+                <label class="control">
+                  <span>Dimension</span>
+                  <select id="segment-dimension-select"></select>
+                </label>
+                <label class="control">
+                  <span>Value</span>
+                  <select id="segment-value-select"></select>
+                </label>
+                <label class="control">
+                  <span>Metric</span>
+                  <select id="segment-metric-select"></select>
+                </label>
+              </div>
+            </div>
+            <div class="segment-summary" id="segment-summary"></div>
+            <div class="chart-wrap">
+              <canvas id="segment-trend-chart" aria-label="Segment trend chart"></canvas>
             </div>
             <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Borough</th>
-                    <th id="borough-table-metric-label">Metric</th>
+                    <th>Value</th>
+                    <th id="segment-table-metric-label">Metric</th>
                     <th>Listings</th>
                   </tr>
                 </thead>
-                <tbody id="borough-table-body"></tbody>
+                <tbody id="segment-table-body"></tbody>
               </table>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
 
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">Segment Explorer</p>
-              <h2>Compare tags and property types across time</h2>
+        <div id="dataset-panel" class="tab-panel">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">Listing Table</p>
+                <h2>Filter and download listing-level data</h2>
+              </div>
+              <div class="button-row">
+                <button id="dataset-download-button" class="action-button" type="button">Download filtered CSV</button>
+              </div>
             </div>
-            <div class="control-grid">
+            <div class="control-grid dataset-control-grid">
               <label class="control">
-                <span>Geography</span>
-                <select id="segment-borough-select"></select>
+                <span>Run</span>
+                <select id="dataset-run-select"></select>
+              </label>
+              <label class="control">
+                <span>Borough</span>
+                <select id="dataset-borough-select"></select>
               </label>
               <label class="control">
                 <span>Dimension</span>
-                <select id="segment-dimension-select"></select>
+                <select id="dataset-dimension-select"></select>
               </label>
               <label class="control">
                 <span>Value</span>
-                <select id="segment-value-select"></select>
+                <select id="dataset-value-select"></select>
               </label>
               <label class="control">
-                <span>Metric</span>
-                <select id="segment-metric-select"></select>
+                <span>Rows shown</span>
+                <select id="dataset-limit-select">
+                  <option value="25">25</option>
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                  <option value="250">250</option>
+                </select>
               </label>
             </div>
-          </div>
-          <div class="segment-summary" id="segment-summary"></div>
-          <div class="chart-wrap">
-            <canvas id="segment-trend-chart" aria-label="Segment trend chart"></canvas>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Value</th>
-                  <th id="segment-table-metric-label">Metric</th>
-                  <th>Listings</th>
-                </tr>
-              </thead>
-              <tbody id="segment-table-body"></tbody>
-            </table>
-          </div>
-        </section>
+            <div class="dataset-summary" id="dataset-summary"></div>
+            <div class="table-wrap dataset-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Run</th>
+                    <th>Borough</th>
+                    <th>Address</th>
+                    <th>Price</th>
+                    <th>Property type</th>
+                    <th>Beds</th>
+                    <th>Deposit</th>
+                    <th>Tags</th>
+                    <th>Listing</th>
+                  </tr>
+                </thead>
+                <tbody id="dataset-table-body"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
       </main>
     </div>
   </body>
