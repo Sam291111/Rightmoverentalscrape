@@ -159,7 +159,39 @@ def _latest_search_json(directory):
     return candidates[0] if candidates else None
 
 
-def _run_search(search_url, output_dir, *, pages, max_results, headless, interactive, user_data_dir):
+def _build_empty_search_output(output_dir, *, search_url, pages, max_results, headless, interactive, user_data_dir, stop_reason):
+    metadata = {
+        "generated_at": datetime.now().isoformat(),
+        "market": "rent",
+        "start_url": search_url,
+        "pages_requested": pages,
+        "page_size": 24,
+        "pages_scraped": 0,
+        "max_results": max_results,
+        "results_count": 0,
+        "stop_reason": stop_reason,
+        "last_page_index": 0,
+        "interactive": bool(interactive),
+        "headless": bool(headless),
+        "user_data_dir": user_data_dir,
+        "synthetic_empty_result": True,
+    }
+    json_path, _, _ = save_outputs(output_dir, [], [], metadata)
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    return json_path, payload
+
+
+def _run_search(
+    search_url,
+    output_dir,
+    *,
+    pages,
+    max_results,
+    headless,
+    interactive,
+    user_data_dir,
+    allow_empty_page_zero=False,
+):
     command = [
         sys.executable,
         str(SCRIPT_DIR / "rightmove_rental_search_scraper.py"),
@@ -182,7 +214,37 @@ def _run_search(search_url, output_dir, *, pages, max_results, headless, interac
         command.extend(["--user-data-dir", user_data_dir])
 
     print(f"\nRunning: {' '.join(command)}")
-    subprocess.run(command, check=True, cwd=str(SCRIPT_DIR.parent))
+    completed = subprocess.run(
+        command,
+        check=False,
+        cwd=str(SCRIPT_DIR.parent),
+        capture_output=True,
+        text=True,
+    )
+    if completed.stdout:
+        print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
+    if completed.stderr:
+        print(completed.stderr, end="" if completed.stderr.endswith("\n") else "\n", file=sys.stderr)
+    if completed.returncode != 0:
+        combined_output = f"{completed.stdout}\n{completed.stderr}"
+        if allow_empty_page_zero and "Cards did not appear for page index 0" in combined_output:
+            print(f"Treating page-0 no-card search as an empty result set: {search_url}")
+            return _build_empty_search_output(
+                output_dir,
+                search_url=search_url,
+                pages=pages,
+                max_results=max_results,
+                headless=headless,
+                interactive=interactive,
+                user_data_dir=user_data_dir,
+                stop_reason="empty_page_0_no_cards",
+            )
+        raise subprocess.CalledProcessError(
+            completed.returncode,
+            command,
+            output=completed.stdout,
+            stderr=completed.stderr,
+        )
     search_json = _latest_search_json(output_dir)
     if not search_json:
         raise FileNotFoundError(f"No search JSON produced in {output_dir}")
@@ -262,6 +324,7 @@ def main():
             headless=args.headless,
             interactive=args.interactive,
             user_data_dir=args.user_data_dir,
+            allow_empty_page_zero=(depth > 0 and source_type == "borough_outcode"),
         )
 
         meta = payload.get("meta", {})
@@ -351,6 +414,8 @@ def main():
                 "reported_result_count": item["payload"].get("meta", {}).get("reported_result_count"),
                 "reported_pagination_total": item["payload"].get("meta", {}).get("reported_pagination_total"),
                 "results_count": item["payload"].get("meta", {}).get("results_count"),
+                "stop_reason": item["payload"].get("meta", {}).get("stop_reason"),
+                "synthetic_empty_result": bool(item["payload"].get("meta", {}).get("synthetic_empty_result")),
             }
             for item in area_records
         ],
