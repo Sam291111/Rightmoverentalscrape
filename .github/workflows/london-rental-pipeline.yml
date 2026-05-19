@@ -18,6 +18,11 @@ on:
         type: number
         required: false
         default: 0
+      search_chunk_size:
+        description: Borough seed searches per search job chunk
+        type: number
+        required: false
+        default: 4
       detail_chunk_size:
         description: Listings per detail enrichment chunk
         type: number
@@ -34,15 +39,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  search:
+  search_manifest:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     outputs:
+      search_chunk_matrix: ${{ steps.manifest.outputs.search_chunk_matrix }}
+      search_chunk_count: ${{ steps.manifest.outputs.search_chunk_count }}
       chunk_matrix: ${{ steps.manifest.outputs.chunk_matrix }}
       chunk_count: ${{ steps.manifest.outputs.chunk_count }}
       pages: ${{ steps.params.outputs.pages }}
       max_results: ${{ steps.params.outputs.max_results }}
       max_outcodes_per_borough: ${{ steps.params.outputs.max_outcodes_per_borough }}
+      search_chunk_size: ${{ steps.params.outputs.search_chunk_size }}
       detail_chunk_size: ${{ steps.params.outputs.detail_chunk_size }}
 
     steps:
@@ -53,14 +61,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Set up Chrome
-        uses: browser-actions/setup-chrome@v1
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r Scraper/requirements.txt
 
       - name: Resolve run parameters
         id: params
@@ -82,7 +82,11 @@ jobs:
             pages="$(normalise_int "${{ inputs.pages }}" 0)"
             max_results="$(normalise_int "${{ inputs.max_results }}" 0)"
             max_outcodes_per_borough="$(normalise_int "${{ inputs.max_outcodes_per_borough }}" 0)"
+            search_chunk_size="$(normalise_int "${{ inputs.search_chunk_size }}" 4)"
             detail_chunk_size="$(normalise_int "${{ inputs.detail_chunk_size }}" 400)"
+            if [ "$search_chunk_size" -lt 1 ]; then
+              search_chunk_size=4
+            fi
             if [ "$detail_chunk_size" -lt 1 ]; then
               detail_chunk_size=400
             fi
@@ -90,71 +94,188 @@ jobs:
             pages=0
             max_results=0
             max_outcodes_per_borough=0
+            search_chunk_size=4
             detail_chunk_size=400
           fi
 
           echo "pages=$pages" >> "$GITHUB_OUTPUT"
           echo "max_results=$max_results" >> "$GITHUB_OUTPUT"
           echo "max_outcodes_per_borough=$max_outcodes_per_borough" >> "$GITHUB_OUTPUT"
+          echo "search_chunk_size=$search_chunk_size" >> "$GITHUB_OUTPUT"
           echo "detail_chunk_size=$detail_chunk_size" >> "$GITHUB_OUTPUT"
-          echo "Using pages=$pages max_results=$max_results max_outcodes_per_borough=$max_outcodes_per_borough detail_chunk_size=$detail_chunk_size"
+          echo "Using pages=$pages max_results=$max_results max_outcodes_per_borough=$max_outcodes_per_borough search_chunk_size=$search_chunk_size detail_chunk_size=$detail_chunk_size"
 
-      - name: Run adaptive rental search stage
-        run: |
-          mkdir -p .workflow/search
-          max_outcodes_args=()
-          if [ "${{ steps.params.outputs.max_outcodes_per_borough }}" -gt 0 ]; then
-            max_outcodes_args+=(--max-outcodes-per-borough "${{ steps.params.outputs.max_outcodes_per_borough }}")
-          fi
-          python Scraper/run_adaptive_london_rental_search.py \
-            --pages "${{ steps.params.outputs.pages }}" \
-            --max-results "${{ steps.params.outputs.max_results }}" \
-            --output-dir .workflow/search/output \
-            --headless \
-            --run-dir .workflow/search/run \
-            --user-data-dir .workflow/search/browser_profile \
-            "${max_outcodes_args[@]}"
-
-      - name: Prepare search artifact and chunk manifest
+      - name: Build adaptive search chunk manifest
         id: manifest
-        shell: bash
         run: |
-          mkdir -p .workflow/dispatch/search_bundle
-          search_json="$(ls -t .workflow/search/output/rightmove_rental_search_results_*.json | head -n1)"
-          search_csv="$(ls -t .workflow/search/output/rightmove_rental_search_results_*.csv | head -n1)"
-          cp "$search_json" .workflow/dispatch/search_bundle/search_results.json
-          cp "$search_csv" .workflow/dispatch/search_bundle/search_results.csv
-          if [ -f .workflow/search/run/adaptive_london_search_report.json ]; then
-            cp .workflow/search/run/adaptive_london_search_report.json .workflow/dispatch/search_bundle/adaptive_london_search_report.json
-          fi
-          python Scraper/build_rental_detail_chunk_manifest.py \
-            --search-results-json .workflow/dispatch/search_bundle/search_results.json \
-            --chunk-size "${{ steps.params.outputs.detail_chunk_size }}" \
-            --output .workflow/dispatch/search_bundle/chunk_manifest.json
-          chunk_matrix="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/dispatch/search_bundle/chunk_manifest.json").read_text()); print(json.dumps(data["include"]))')"
-          chunk_count="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/dispatch/search_bundle/chunk_manifest.json").read_text()); print(data["chunk_count"])')"
-          echo "chunk_matrix=$chunk_matrix" >> "$GITHUB_OUTPUT"
-          echo "chunk_count=$chunk_count" >> "$GITHUB_OUTPUT"
-          echo "Chunk count: $chunk_count"
+          mkdir -p .workflow/dispatch
+          python Scraper/build_adaptive_search_chunk_manifest.py \
+            --boroughs-per-chunk "${{ steps.params.outputs.search_chunk_size }}" \
+            --output .workflow/dispatch/search_chunk_manifest.json
+          search_chunk_matrix="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/dispatch/search_chunk_manifest.json").read_text()); print(json.dumps(data["include"]))')"
+          search_chunk_count="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/dispatch/search_chunk_manifest.json").read_text()); print(data["chunk_count"])')"
+          echo "search_chunk_matrix=$search_chunk_matrix" >> "$GITHUB_OUTPUT"
+          echo "search_chunk_count=$search_chunk_count" >> "$GITHUB_OUTPUT"
+          echo "chunk_matrix=[]" >> "$GITHUB_OUTPUT"
+          echo "chunk_count=0" >> "$GITHUB_OUTPUT"
+          echo "Search chunk count: $search_chunk_count"
 
-      - name: Upload search artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: rental-search-bundle
-          path: .workflow/dispatch/search_bundle
-          if-no-files-found: error
-          retention-days: 14
-
-  detail_chunks:
-    needs: search
-    if: ${{ needs.search.outputs.chunk_count != '0' }}
+  search_chunks:
+    needs: search_manifest
+    if: ${{ needs.search_manifest.outputs.search_chunk_count != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
-        chunk: ${{ fromJson(needs.search.outputs.chunk_matrix) }}
+        chunk: ${{ fromJson(needs.search_manifest.outputs.search_chunk_matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r Scraper/requirements.txt
+
+      - name: Run adaptive rental search chunk
+        env:
+          SEARCH_BOROUGHS_JSON: ${{ toJson(matrix.chunk.borough_names) }}
+        run: |
+          mkdir -p ".workflow/search/${{ matrix.chunk.chunk_label }}"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          boroughs = json.loads(os.environ["SEARCH_BOROUGHS_JSON"])
+          Path(".workflow/search/seed_boroughs.txt").write_text("\n".join(boroughs), encoding="utf-8")
+          PY
+          seed_args=()
+          while IFS= read -r borough; do
+            if [ -n "$borough" ]; then
+              seed_args+=(--seed-borough "$borough")
+            fi
+          done < .workflow/search/seed_boroughs.txt
+          max_outcodes_args=()
+          if [ "${{ needs.search_manifest.outputs.max_outcodes_per_borough }}" -gt 0 ]; then
+            max_outcodes_args+=(--max-outcodes-per-borough "${{ needs.search_manifest.outputs.max_outcodes_per_borough }}")
+          fi
+          python Scraper/run_adaptive_london_rental_search.py \
+            --pages "${{ needs.search_manifest.outputs.pages }}" \
+            --max-results "${{ needs.search_manifest.outputs.max_results }}" \
+            --output-dir ".workflow/search/${{ matrix.chunk.chunk_label }}/output" \
+            --headless \
+            --run-dir ".workflow/search/${{ matrix.chunk.chunk_label }}/run" \
+            --user-data-dir ".workflow/search/${{ matrix.chunk.chunk_label }}/browser_profile" \
+            "${seed_args[@]}" \
+            "${max_outcodes_args[@]}"
+
+      - name: Prepare search chunk artifact
+        shell: bash
+        run: |
+          mkdir -p ".workflow/search_artifacts/${{ matrix.chunk.chunk_label }}"
+          search_json="$(ls -t .workflow/search/${{ matrix.chunk.chunk_label }}/output/rightmove_rental_search_results_*.json | head -n1)"
+          search_csv="$(ls -t .workflow/search/${{ matrix.chunk.chunk_label }}/output/rightmove_rental_search_results_*.csv | head -n1)"
+          cp "$search_json" ".workflow/search_artifacts/${{ matrix.chunk.chunk_label }}/search_results.json"
+          cp "$search_csv" ".workflow/search_artifacts/${{ matrix.chunk.chunk_label }}/search_results.csv"
+          if [ -f ".workflow/search/${{ matrix.chunk.chunk_label }}/run/adaptive_london_search_report.json" ]; then
+            cp ".workflow/search/${{ matrix.chunk.chunk_label }}/run/adaptive_london_search_report.json" ".workflow/search_artifacts/${{ matrix.chunk.chunk_label }}/adaptive_london_search_report.json"
+          fi
+
+      - name: Upload search chunk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.chunk.chunk_label }}
+          path: .workflow/search_artifacts/${{ matrix.chunk.chunk_label }}
+          if-no-files-found: error
+          retention-days: 14
+
+  search_finalize:
+    needs:
+      - search_manifest
+      - search_chunks
+    if: ${{ always() && needs.search_manifest.result == 'success' && needs.search_chunks.result != 'failure' && needs.search_manifest.outputs.search_chunk_count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    outputs:
+      chunk_matrix: ${{ steps.manifest.outputs.chunk_matrix }}
+      chunk_count: ${{ steps.manifest.outputs.chunk_count }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r Scraper/requirements.txt
+
+      - name: Download search chunk artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: search-*
+          path: .workflow/search_chunks
+
+      - name: Merge search chunks
+        run: |
+          mkdir -p .workflow/search_bundle
+          python Scraper/merge_rental_search_chunks.py \
+            --input-dir .workflow/search_chunks \
+            --output-dir .workflow/search_bundle
+
+      - name: Prepare merged search bundle and detail manifest
+        id: manifest
+        shell: bash
+        run: |
+          search_json="$(ls -t .workflow/search_bundle/rightmove_rental_search_results_*.json | head -n1)"
+          search_csv="$(ls -t .workflow/search_bundle/rightmove_rental_search_results_*.csv | head -n1)"
+          cp "$search_json" .workflow/search_bundle/search_results.json
+          cp "$search_csv" .workflow/search_bundle/search_results.csv
+          python Scraper/build_rental_detail_chunk_manifest.py \
+            --search-results-json .workflow/search_bundle/search_results.json \
+            --chunk-size "${{ needs.search_manifest.outputs.detail_chunk_size }}" \
+            --output .workflow/search_bundle/chunk_manifest.json
+          chunk_matrix="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/search_bundle/chunk_manifest.json").read_text()); print(json.dumps(data["include"]))')"
+          chunk_count="$(python3 -c 'import json, pathlib; data=json.loads(pathlib.Path(".workflow/search_bundle/chunk_manifest.json").read_text()); print(data["chunk_count"])')"
+          echo "chunk_matrix=$chunk_matrix" >> "$GITHUB_OUTPUT"
+          echo "chunk_count=$chunk_count" >> "$GITHUB_OUTPUT"
+          echo "Detail chunk count: $chunk_count"
+
+      - name: Upload search artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rental-search-bundle
+          path: .workflow/search_bundle
+          if-no-files-found: error
+          retention-days: 14
+
+  detail_chunks:
+    needs: search_finalize
+    if: ${{ needs.search_finalize.outputs.chunk_count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        chunk: ${{ fromJson(needs.search_finalize.outputs.chunk_matrix) }}
 
     steps:
       - name: Checkout
@@ -211,9 +332,9 @@ jobs:
 
   finalize:
     needs:
-      - search
+      - search_finalize
       - detail_chunks
-    if: ${{ always() && needs.search.result == 'success' && needs.detail_chunks.result != 'failure' && needs.search.outputs.chunk_count != '0' }}
+    if: ${{ always() && needs.search_finalize.result == 'success' && needs.detail_chunks.result != 'failure' && needs.search_finalize.outputs.chunk_count != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
 
