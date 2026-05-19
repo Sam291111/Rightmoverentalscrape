@@ -5,12 +5,14 @@ on:
     inputs:
       pages:
         description: Search result pages to scrape
+        type: number
         required: false
-        default: "2"
+        default: 2
       max_results:
         description: Maximum listings to keep before enrichment
+        type: number
         required: false
-        default: "40"
+        default: 40
   schedule:
     - cron: "0 6 * * 1,4"
 
@@ -47,13 +49,33 @@ jobs:
         id: params
         shell: bash
         run: |
+          clamp_int() {
+            local value="$1"
+            local fallback="$2"
+            local min="$3"
+            local max="$4"
+            if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+              value="$fallback"
+            fi
+            if [ "$value" -lt "$min" ]; then
+              value="$min"
+            fi
+            if [ "$value" -gt "$max" ]; then
+              value="$max"
+            fi
+            echo "$value"
+          }
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "pages=${{ inputs.pages }}" >> "$GITHUB_OUTPUT"
-            echo "max_results=${{ inputs.max_results }}" >> "$GITHUB_OUTPUT"
+            pages="$(clamp_int "${{ inputs.pages }}" 2 1 60)"
+            max_results="$(clamp_int "${{ inputs.max_results }}" 40 1 1500)"
           else
-            echo "pages=12" >> "$GITHUB_OUTPUT"
-            echo "max_results=250" >> "$GITHUB_OUTPUT"
+            pages=12
+            max_results=250
           fi
+          echo "pages=$pages" >> "$GITHUB_OUTPUT"
+          echo "max_results=$max_results" >> "$GITHUB_OUTPUT"
+          echo "Using pages=$pages max_results=$max_results"
 
       - name: Run London rental pipeline
         run: |

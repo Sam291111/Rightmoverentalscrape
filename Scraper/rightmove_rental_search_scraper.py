@@ -817,6 +817,9 @@ def main():
     args = parse_args()
     driver = setup_browser(headless=args.headless, user_data_dir=args.user_data_dir)
     raw_pages = []
+    pages_scraped = 0
+    stop_reason = "completed_requested_pages"
+    last_page_index = None
 
     try:
         if args.search_url:
@@ -855,6 +858,7 @@ def main():
 
         for page_offset in range(args.pages):
             page_index = start_index + (page_offset * args.page_size)
+            last_page_index = page_index
             page_url = _build_page_url(start_url, page_index, keep_zero_index)
 
             print(f"\nScraping rental page index {page_index}")
@@ -868,7 +872,15 @@ def main():
                 reprompt=args.interactive,
             )
             if not wait_for_cards(driver):
-                raise RuntimeError(f"Cards did not appear for page index {page_index}")
+                if page_offset == 0:
+                    raise RuntimeError(f"Cards did not appear for page index {page_index}")
+                print(
+                    "  No cards appeared on this page. Stopping pagination and keeping the "
+                    "results collected so far. This usually means the requested page is past "
+                    "the available result range or Rightmove stopped serving deeper pages."
+                )
+                stop_reason = "cards_missing_after_results_started"
+                break
             time.sleep(args.wait_seconds)
 
             dom_cards = scrape_dom_cards(driver, page_index)
@@ -916,9 +928,16 @@ def main():
                 f"  Found {len(api_listings)} API listings, {len(dom_cards)} DOM cards, "
                 f"{len(by_id)} merged listings on this page."
             )
+            pages_scraped += 1
+
+            if not by_id:
+                print("  No listings were found on this page. Stopping pagination.")
+                stop_reason = "empty_page"
+                break
 
             if args.max_results and len(all_results) >= args.max_results:
                 print(f"  Reached max-results cap of {args.max_results}.")
+                stop_reason = "max_results_reached"
                 break
 
         merged_results = sorted(
@@ -938,8 +957,11 @@ def main():
             "start_url": start_url,
             "pages_requested": args.pages,
             "page_size": args.page_size,
+            "pages_scraped": pages_scraped,
             "max_results": args.max_results,
             "results_count": len(merged_results),
+            "stop_reason": stop_reason,
+            "last_page_index": last_page_index,
             "interactive": bool(args.interactive),
             "headless": bool(args.headless),
             "user_data_dir": args.user_data_dir,
