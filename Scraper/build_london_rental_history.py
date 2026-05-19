@@ -20,6 +20,7 @@ import pandas as pd
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "output"
 DEFAULT_HISTORY_DIR = DEFAULT_OUTPUT_DIR / "history"
+DEFAULT_PAGES_DATA_DIR = SCRIPT_DIR.parent / "docs" / "data"
 RUN_FILE_RE = re.compile(r"rightmove_cleaned_dataset_(\d{8}_\d{6})_london_clipped_(\d{8}_\d{6})\.json$")
 
 
@@ -36,6 +37,11 @@ def parse_args():
         "--output-dir",
         default=str(DEFAULT_HISTORY_DIR),
         help="Directory for historical metrics outputs.",
+    )
+    parser.add_argument(
+        "--pages-data-dir",
+        default=str(DEFAULT_PAGES_DATA_DIR),
+        help="Directory for the GitHub Pages dashboard data bundle.",
     )
     return parser.parse_args()
 
@@ -381,11 +387,69 @@ def _write_csv(path, rows):
             writer.writerow(row)
 
 
+def _dashboard_payload(history):
+    runs = history["runs"]
+    borough_stats = history["borough_stats"]
+    category_stats = history["category_stats"]
+    borough_category_stats = history["borough_category_stats"]
+    latest_run = runs[-1] if runs else None
+    latest_run_timestamp = latest_run["run_timestamp"] if latest_run else None
+
+    latest_borough_stats = [
+        row for row in borough_stats if row["run_timestamp"] == latest_run_timestamp
+    ]
+    latest_category_stats = [
+        row for row in category_stats if row["run_timestamp"] == latest_run_timestamp
+    ]
+    latest_borough_category_stats = [
+        row for row in borough_category_stats if row["run_timestamp"] == latest_run_timestamp
+    ]
+
+    dimension_values = {}
+    for row in category_stats:
+        dimension_values.setdefault(row["dimension"], set()).add(str(row["value"]))
+
+    return {
+        "meta": {
+            **history["meta"],
+            "latest_run_timestamp": latest_run_timestamp,
+            "latest_run_date": latest_run["run_date"] if latest_run else None,
+        },
+        "overview": {
+            "latest_run": latest_run,
+            "borough_count": len({row["london_borough"] for row in latest_borough_stats}),
+            "category_row_count": len(latest_category_stats),
+        },
+        "filters": {
+            "boroughs": sorted(
+                {row["london_borough"] for row in borough_stats if row["london_borough"] != "Unknown"}
+            ),
+            "dimensions": list(history["meta"]["dimensions"]),
+            "dimension_values": {
+                dimension: sorted(values) for dimension, values in dimension_values.items()
+            },
+        },
+        "series": {
+            "runs": runs,
+            "borough_stats": borough_stats,
+            "category_stats": category_stats,
+            "borough_category_stats": borough_category_stats,
+        },
+        "latest": {
+            "borough_stats": latest_borough_stats,
+            "category_stats": latest_category_stats,
+            "borough_category_stats": latest_borough_category_stats,
+        },
+    }
+
+
 def main():
     args = parse_args()
     input_dir = _resolve_path(args.input_dir)
     output_dir = _resolve_path(args.output_dir)
+    pages_data_dir = _resolve_path(args.pages_data_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    pages_data_dir.mkdir(parents=True, exist_ok=True)
 
     run_files = sorted(input_dir.glob("rightmove_cleaned_dataset_*_london_clipped_*.json"))
     all_rows = []
@@ -403,12 +467,14 @@ def main():
     borough_csv = output_dir / "rightmove_london_borough_stats.csv"
     category_csv = output_dir / "rightmove_london_category_stats.csv"
     borough_category_csv = output_dir / "rightmove_london_borough_category_stats.csv"
+    dashboard_json = pages_data_dir / "dashboard.json"
 
     _write_json(json_path, history)
     _write_csv(runs_csv, history["runs"])
     _write_csv(borough_csv, history["borough_stats"])
     _write_csv(category_csv, history["category_stats"])
     _write_csv(borough_category_csv, history["borough_category_stats"])
+    _write_json(dashboard_json, _dashboard_payload(history))
 
     print("\nSaved London history outputs:")
     print(f"  JSON: {json_path}")
@@ -416,6 +482,7 @@ def main():
     print(f"  Borough CSV: {borough_csv}")
     print(f"  Category CSV: {category_csv}")
     print(f"  Borough+category CSV: {borough_category_csv}")
+    print(f"  Pages JSON: {dashboard_json}")
     print(f"  Runs: {history['meta']['run_count']}")
     print(f"  Listing rows: {history['meta']['listing_rows']}")
 

@@ -12,7 +12,8 @@ Each run:
 2. installs Chrome on the runner
 3. runs `python Scraper/run_london_rental_pipeline.py`
 4. uploads `Scraper/output` as a workflow artifact
-5. commits changed output files back to the repository
+5. rebuilds the GitHub Pages dashboard data in `docs/data`
+6. commits changed output and dashboard files back to the repository
 
 ## Triggers
 
@@ -56,6 +57,8 @@ Key folders/files:
 
 - `Scraper/output/`
 - `Scraper/output/history/`
+- `docs/`
+- `docs/data/dashboard.json`
 
 Useful files include:
 
@@ -63,6 +66,20 @@ Useful files include:
 - the latest London-clipped run
 - the historical metrics JSON
 - borough/category comparison CSVs
+- the Pages-ready dashboard data bundle
+
+## GitHub Pages Setup
+
+The simplest publishing route for this repo is:
+
+1. open `Settings` -> `Pages`
+2. set `Build and deployment` to `Deploy from a branch`
+3. choose branch `main`
+4. choose folder `/docs`
+5. save
+
+Once that is enabled, the site will publish the static dashboard from `docs/`,
+and future Actions runs will update `docs/data/dashboard.json` automatically.
 
 ## Suggested First Use
 

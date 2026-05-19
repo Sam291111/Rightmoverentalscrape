@@ -68,18 +68,19 @@ jobs:
           name: london-rental-output
           path: |
             Scraper/output
+            docs/data
           if-no-files-found: warn
           retention-days: 14
 
       - name: Commit updated outputs
         shell: bash
         run: |
-          if git diff --quiet -- Scraper/output; then
-            echo "No output changes to commit."
+          if git diff --quiet -- Scraper/output docs; then
+            echo "No output or dashboard changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Scraper/output
-          git commit -m "Update London rental outputs"
+          git add Scraper/output docs
+          git commit -m "Update London rental outputs and dashboard data"
           git push

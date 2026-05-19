@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>London Rental Dashboard</title>
+    <meta
+      name="description"
+      content="Historical Rightmove rental trends for London, with borough and category comparisons."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Rightmove London Rentals</p>
+          <h1>Historical rental trends built from preserved scrape runs.</h1>
+          <p class="hero-text">
+            This dashboard updates from the automated London rental pipeline and keeps each
+            clipped run intact, so borough and category comparisons can be tracked over time.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <div class="meta-panel">
+            <span class="meta-label">Latest Run</span>
+            <strong id="latest-run-label">Loading...</strong>
+          </div>
+          <div class="meta-panel">
+            <span class="meta-label">Updated</span>
+            <strong id="generated-at-label">Loading...</strong>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="summary-grid" id="summary-grid">
+          <article class="summary-card">
+            <span class="summary-label">Runs captured</span>
+            <strong class="summary-value" id="runs-captured">-</strong>
+          </article>
+          <article class="summary-card">
+            <span class="summary-label">Latest listings</span>
+            <strong class="summary-value" id="latest-listings">-</strong>
+          </article>
+          <article class="summary-card">
+            <span class="summary-label">Latest median price</span>
+            <strong class="summary-value" id="latest-median-price">-</strong>
+          </article>
+          <article class="summary-card">
+            <span class="summary-label">Latest mean price</span>
+            <strong class="summary-value" id="latest-mean-price">-</strong>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Trend Line</p>
+              <h2>London-wide trend across runs</h2>
+            </div>
+            <label class="control">
+              <span>Metric</span>
+              <select id="run-metric-select"></select>
+            </label>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="run-trend-chart" aria-label="London rental trend chart"></canvas>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Borough Snapshot</p>
+              <h2>Latest run by borough</h2>
+            </div>
+            <div class="control-row">
+              <label class="control">
+                <span>Metric</span>
+                <select id="borough-metric-select"></select>
+              </label>
+              <label class="control">
+                <span>Show</span>
+                <select id="borough-limit-select">
+                  <option value="8">Top 8</option>
+                  <option value="12">Top 12</option>
+                  <option value="33">All boroughs</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="borough-layout">
+            <div class="chart-wrap borough-chart-wrap">
+              <canvas id="borough-chart" aria-label="Latest borough comparison chart"></canvas>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Borough</th>
+                    <th id="borough-table-metric-label">Metric</th>
+                    <th>Listings</th>
+                  </tr>
+                </thead>
+                <tbody id="borough-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Segment Explorer</p>
+              <h2>Compare tags and property types across time</h2>
+            </div>
+            <div class="control-grid">
+              <label class="control">
+                <span>Geography</span>
+                <select id="segment-borough-select"></select>
+              </label>
+              <label class="control">
+                <span>Dimension</span>
+                <select id="segment-dimension-select"></select>
+              </label>
+              <label class="control">
+                <span>Value</span>
+                <select id="segment-value-select"></select>
+              </label>
+              <label class="control">
+                <span>Metric</span>
+                <select id="segment-metric-select"></select>
+              </label>
+            </div>
+          </div>
+          <div class="segment-summary" id="segment-summary"></div>
+          <div class="chart-wrap">
+            <canvas id="segment-trend-chart" aria-label="Segment trend chart"></canvas>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Value</th>
+                  <th id="segment-table-metric-label">Metric</th>
+                  <th>Listings</th>
+                </tr>
+              </thead>
+              <tbody id="segment-table-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
