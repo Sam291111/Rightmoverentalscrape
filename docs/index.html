@@ -87,7 +87,7 @@
             <div class="panel-header">
               <div>
                 <p class="panel-kicker">Borough Snapshot</p>
-                <h2>Latest run by borough</h2>
+                <h2>Latest run, ranked by borough</h2>
               </div>
               <div class="control-row">
                 <label class="control">
@@ -138,15 +138,22 @@
                   <span>Dimension</span>
                   <select id="segment-dimension-select"></select>
                 </label>
-                <label class="control">
-                  <span>Value</span>
-                  <select id="segment-value-select"></select>
-                </label>
-                <label class="control">
-                  <span>Metric</span>
-                  <select id="segment-metric-select"></select>
-                </label>
-              </div>
+              <label class="control">
+                <span>Value</span>
+                <select id="segment-value-select"></select>
+              </label>
+              <label class="control">
+                <span>Scale</span>
+                <select id="segment-scale-select">
+                  <option value="linear" selected>Linear</option>
+                  <option value="logarithmic">Logarithmic</option>
+                </select>
+              </label>
+              <label class="control">
+                <span>Metric</span>
+                <select id="segment-metric-select"></select>
+              </label>
+            </div>
             </div>
             <div class="segment-summary" id="segment-summary"></div>
             <div class="chart-wrap">

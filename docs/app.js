@@ -139,6 +139,7 @@ function initialiseControls() {
   document.querySelector("#borough-limit-select").addEventListener("change", renderLatestBoroughs);
   document.querySelector("#segment-borough-select").addEventListener("change", renderSegmentExplorer);
   document.querySelector("#segment-value-select").addEventListener("change", renderSegmentExplorer);
+  document.querySelector("#segment-scale-select").addEventListener("change", renderSegmentExplorer);
   document.querySelector("#segment-metric-select").addEventListener("change", renderSegmentExplorer);
 
   document.querySelector("#dataset-dimension-select").addEventListener("change", syncDatasetValuesAndRender);
@@ -171,7 +172,7 @@ function syncSegmentValuesAndRender() {
   const preferredValue = pickDefaultValue(dimension, values);
   fillSelect(
     document.querySelector("#segment-value-select"),
-    values.map((value) => ({ value, label: value })),
+    [{ value: "__all__", label: "All values" }].concat(values.map((value) => ({ value, label: value }))),
     preferredValue,
   );
   renderSegmentExplorer();
@@ -204,7 +205,7 @@ function pickDefaultValue(dimension, values, fallback = null) {
   if (fallback !== null) {
     return values.includes(priority[dimension]) ? priority[dimension] : fallback;
   }
-  return values.includes(priority[dimension]) ? priority[dimension] : values[0];
+  return values.includes(priority[dimension]) ? priority[dimension] : "__all__";
 }
 
 function renderAll() {
@@ -262,26 +263,49 @@ function renderLatestBoroughs() {
   document.querySelector("#borough-table-metric-label").textContent = METRICS[metric].label;
 
   state.charts.borough = renderChart(state.charts.borough, "#borough-chart", {
-    type: "bar",
+    type: "scatter",
     data: {
-      labels: rows.map((row) => row.london_borough),
       datasets: [
         {
-          label: METRICS[metric].label,
-          data: rows.map((row) => row[metric]),
+          label: `Latest run · ${METRICS[metric].label}`,
+          data: rows.map((row) => ({ x: row[metric], y: row.london_borough })),
           backgroundColor: rows.map((_, index) =>
-            index % 2 === 0 ? "rgba(37, 95, 90, 0.82)" : "rgba(184, 79, 45, 0.82)",
+            index % 2 === 0 ? "rgba(37, 95, 90, 0.95)" : "rgba(184, 79, 45, 0.95)",
           ),
-          borderRadius: 12,
+          borderColor: "#fff8f3",
+          borderWidth: 2,
+          pointRadius: 7,
+          pointHoverRadius: 9,
         },
       ],
     },
     options: {
-      ...chartOptions(METRICS[metric].format),
-      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          ticks: {
+            callback: (value) => METRICS[metric].format(value),
+            color: "#665d52",
+          },
+          grid: { color: "rgba(78, 55, 27, 0.1)" },
+        },
+        y: {
+          type: "category",
+          labels: rows.map((row) => row.london_borough),
+          ticks: { color: "#665d52" },
+          grid: { display: false },
+        },
+      },
       plugins: {
         legend: { display: false },
-        tooltip: tooltipConfig(METRICS[metric].format),
+        tooltip: {
+          callbacks: {
+            label(context) {
+              return `${context.raw.y}: ${METRICS[metric].format(context.raw.x)}`;
+            },
+          },
+        },
       },
     },
   });
@@ -303,6 +327,7 @@ function renderSegmentExplorer() {
   const borough = document.querySelector("#segment-borough-select").value;
   const dimension = document.querySelector("#segment-dimension-select").value;
   const value = document.querySelector("#segment-value-select").value;
+  const scale = document.querySelector("#segment-scale-select").value;
   const metric = document.querySelector("#segment-metric-select").value;
   const usingAllLondon = borough === "__all__";
 
@@ -318,43 +343,51 @@ function renderSegmentExplorer() {
     .filter((row) => usingAllLondon || row.london_borough === borough);
 
   const selectedSeries = trendRows
-    .filter((row) => row.value === value)
+    .filter((row) => value === "__all__" || row.value === value)
     .sort((left, right) => left.run_timestamp.localeCompare(right.run_timestamp));
 
   const latestRows = latestSource
     .filter((row) => row.dimension === dimension)
     .filter((row) => usingAllLondon || row.london_borough === borough)
+    .filter((row) => value === "__all__" || row.value === value)
     .sort((left, right) => (right[metric] ?? -Infinity) - (left[metric] ?? -Infinity));
+
+  const datasets = [];
+  const groupedSeries = groupBy(selectedSeries, (row) => row.value);
+  const valuesToRender = value === "__all__" ? [...groupedSeries.keys()].sort() : [value];
+  for (const [index, seriesValue] of valuesToRender.entries()) {
+    const seriesRows = groupedSeries.get(seriesValue) || [];
+    datasets.push({
+      label: `${seriesValue} · ${METRICS[metric].label}`,
+      data: seriesRows.map((row) => row[metric]),
+      borderColor: paletteColor(index),
+      backgroundColor: paletteFill(index),
+      borderWidth: 3,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      tension: 0.25,
+      fill: false,
+    });
+  }
 
   state.charts.segment = renderChart(state.charts.segment, "#segment-trend-chart", {
     type: "line",
     data: {
-      labels: selectedSeries.map((row) => formatRunLabel(row.run_timestamp)),
-      datasets: [
-        {
-          label: `${value} · ${METRICS[metric].label}`,
-          data: selectedSeries.map((row) => row[metric]),
-          borderColor: "#255f5a",
-          backgroundColor: "rgba(37, 95, 90, 0.14)",
-          borderWidth: 3,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          tension: 0.25,
-          fill: true,
-        },
-      ],
+      labels: uniqueOrdered(selectedSeries.map((row) => formatRunLabel(row.run_timestamp))),
+      datasets,
     },
-    options: chartOptions(METRICS[metric].format),
+    options: chartOptions(METRICS[metric].format, { yScaleType: scale }),
   });
 
   document.querySelector("#segment-table-metric-label").textContent = METRICS[metric].label;
   document.querySelector("#segment-summary").innerHTML = [
     makePill(`Scope: ${usingAllLondon ? "All London" : borough}`),
     makePill(`Dimension: ${prettifyDimension(dimension)}`),
-    makePill(`Value: ${value || "None"}`),
+    makePill(`Value: ${value === "__all__" ? "All values" : value || "None"}`),
+    makePill(`Scale: ${scale === "logarithmic" ? "Logarithmic" : "Linear"}`),
     makePill(
       `Latest ${METRICS[metric].label.toLowerCase()}: ${
-        selectedSeries.length ? METRICS[metric].format(selectedSeries[selectedSeries.length - 1][metric]) : "No data"
+        latestRows.length ? METRICS[metric].format(latestRows[0][metric]) : "No data"
       }`,
     ),
   ].join("");
@@ -503,12 +536,13 @@ function renderChart(existingChart, selector, config) {
   return new Chart(document.querySelector(selector), config);
 }
 
-function chartOptions(valueFormatter) {
+function chartOptions(valueFormatter, { yScaleType = "linear" } = {}) {
   return {
     responsive: true,
     maintainAspectRatio: false,
     scales: {
       y: {
+        type: yScaleType,
         beginAtZero: false,
         ticks: {
           callback: (value) => valueFormatter(value),
@@ -541,6 +575,42 @@ function tooltipConfig(valueFormatter) {
       },
     },
   };
+}
+
+function groupBy(rows, keyFn) {
+  const grouped = new Map();
+  for (const row of rows) {
+    const key = keyFn(row);
+    if (!grouped.has(key)) {
+      grouped.set(key, []);
+    }
+    grouped.get(key).push(row);
+  }
+  return grouped;
+}
+
+function uniqueOrdered(values) {
+  return [...new Set(values)];
+}
+
+function paletteColor(index) {
+  const colors = ["#255f5a", "#b84f2d", "#8f6d1f", "#556ab4", "#7c4d79", "#2e7d32", "#8a3b12", "#546e7a", "#ad1457"];
+  return colors[index % colors.length];
+}
+
+function paletteFill(index) {
+  const fills = [
+    "rgba(37, 95, 90, 0.18)",
+    "rgba(184, 79, 45, 0.18)",
+    "rgba(143, 109, 31, 0.18)",
+    "rgba(85, 106, 180, 0.18)",
+    "rgba(124, 77, 121, 0.18)",
+    "rgba(46, 125, 50, 0.18)",
+    "rgba(138, 59, 18, 0.18)",
+    "rgba(84, 110, 122, 0.18)",
+    "rgba(173, 20, 87, 0.18)",
+  ];
+  return fills[index % fills.length];
 }
 
 function formatCurrency(value) {
