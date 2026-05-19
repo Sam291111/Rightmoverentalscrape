@@ -240,14 +240,17 @@ function renderSummary() {
   document.querySelector("#latest-run-label").textContent = formatRunLabel(meta.latest_run_timestamp);
   document.querySelector("#generated-at-label").textContent = formatDateTime(meta.generated_at);
   document.querySelector("#runs-captured").textContent = formatNumber(meta.run_count, 0);
-  document.querySelector("#latest-listings").textContent = formatNumber(latestRun.listing_count, 0);
-  document.querySelector("#latest-median-price").textContent = formatCurrency(latestRun.median_price);
-  document.querySelector("#latest-mean-price").textContent = formatCurrency(latestRun.mean_price);
+  document.querySelector("#latest-listings").textContent = formatNumber(latestRun?.listing_count, 0);
+  document.querySelector("#latest-median-price").textContent = formatCurrency(latestRun?.median_price);
+  document.querySelector("#latest-mean-price").textContent = formatCurrency(latestRun?.mean_price);
 }
 
 function renderRunTrend() {
   const metric = document.querySelector("#run-metric-select").value;
   const series = state.dashboard.series.runs;
+  if (!series.length) {
+    return renderEmptyChartMessage("runTrend", "#run-trend-chart", "No production run data yet.");
+  }
   state.charts.runTrend = renderChart(state.charts.runTrend, "#run-trend-chart", {
     type: "line",
     data: {
@@ -279,6 +282,10 @@ function renderLatestBoroughs() {
     .slice(0, limit);
 
   document.querySelector("#borough-table-metric-label").textContent = METRICS[metric].label;
+  if (!rows.length) {
+    renderEmptyTable("#borough-table-body", 3, "No borough data has been published yet.");
+    return renderEmptyChartMessage("borough", "#borough-chart", "No borough snapshot yet.");
+  }
 
   state.charts.borough = renderChart(state.charts.borough, "#borough-chart", {
     type: "scatter",
@@ -369,6 +376,14 @@ function renderSegmentExplorer() {
     .filter((row) => usingAllLondon || row.london_borough === borough)
     .filter((row) => value === "__all__" || row.value === value)
     .sort((left, right) => (right[metric] ?? -Infinity) - (left[metric] ?? -Infinity));
+
+  if (!trendRows.length) {
+    document.querySelector("#segment-summary").innerHTML = [
+      makePill("No production comparison data has been published yet."),
+    ].join("");
+    renderEmptyTable("#segment-table-body", 3, "No segment data has been published yet.");
+    return renderEmptyChartMessage("segment", "#segment-trend-chart", "No segment trend data yet.");
+  }
 
   const datasets = [];
   const groupedSeries = groupBy(selectedSeries, (row) => row.value);
@@ -569,7 +584,40 @@ function renderChart(existingChart, selector, config) {
   if (existingChart) {
     existingChart.destroy();
   }
-  return new Chart(document.querySelector(selector), config);
+  const canvas = document.querySelector(selector);
+  const empty = canvas.parentElement.querySelector(".chart-empty-message");
+  if (empty) {
+    empty.remove();
+  }
+  return new Chart(canvas, config);
+}
+
+function renderEmptyChartMessage(chartKey, selector, message) {
+  const canvas = document.querySelector(selector);
+  const chart = state.charts[chartKey];
+  if (chart) {
+    chart.destroy();
+    state.charts[chartKey] = null;
+  }
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  const parent = canvas.parentElement;
+  let empty = parent.querySelector(".chart-empty-message");
+  if (!empty) {
+    empty = document.createElement("p");
+    empty.className = "chart-empty-message";
+    parent.appendChild(empty);
+  }
+  empty.textContent = message;
+  return null;
+}
+
+function renderEmptyTable(selector, colspan, message) {
+  document.querySelector(selector).innerHTML = `
+    <tr>
+      <td colspan="${colspan}">${escapeHtml(message)}</td>
+    </tr>
+  `;
 }
 
 function chartOptions(valueFormatter, { yScaleType = "linear" } = {}) {
