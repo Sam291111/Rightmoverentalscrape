@@ -35,6 +35,10 @@ def parse_args():
         default=str(DEFAULT_OUTPUT_DIR),
         help="Directory to write the merged search dataset into.",
     )
+    parser.add_argument(
+        "--manifest-json",
+        help="Optional search chunk manifest JSON used to report missing chunk labels.",
+    )
     return parser.parse_args()
 
 
@@ -46,25 +50,54 @@ def _resolve_path(path_arg):
 
 
 def _iter_search_jsons(input_dir):
-    for path in sorted(Path(input_dir).rglob("search_results.json")):
-        yield path
+    seen = set()
+    patterns = [
+        "search_results.json",
+        "rightmove_rental_search_results_*.json",
+    ]
+    for pattern in patterns:
+        for path in sorted(Path(input_dir).rglob(pattern)):
+            resolved = path.resolve()
+            if resolved in seen or not path.is_file():
+                continue
+            seen.add(resolved)
+            yield path
+
+
+def _load_expected_chunk_labels(manifest_json):
+    if not manifest_json:
+        return []
+    manifest_path = _resolve_path(manifest_json)
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return [item.get("chunk_label") for item in payload.get("include", []) if item.get("chunk_label")]
 
 
 def main():
     args = parse_args()
     input_dir = _resolve_path(args.input_dir)
     output_dir = _resolve_path(args.output_dir)
+    expected_chunk_labels = _load_expected_chunk_labels(args.manifest_json)
 
     merged = {}
     chunk_summaries = []
+    found_chunk_labels = set()
 
     for json_path in _iter_search_jsons(input_dir):
         payload = json.loads(json_path.read_text(encoding="utf-8"))
         results = payload.get("results", [])
         meta = payload.get("meta", {})
+        parent_chunk_label = None
+        try:
+            relative_parts = json_path.relative_to(input_dir).parts
+            if relative_parts:
+                parent_chunk_label = relative_parts[0]
+                found_chunk_labels.add(parent_chunk_label)
+        except ValueError:
+            parent_chunk_label = None
         chunk_summaries.append(
             {
                 "path": str(json_path),
+                "chunk_label": parent_chunk_label,
                 "results_count": len(results),
                 "collector": meta.get("collector"),
                 "area_count": meta.get("area_count"),
@@ -76,6 +109,13 @@ def main():
             if not key:
                 continue
             merged[key] = merge_listing_data(merged.get(key, {}), item)
+
+    if not chunk_summaries:
+        raise FileNotFoundError("No merged search chunk JSON files were found.")
+
+    missing_chunk_labels = [
+        label for label in expected_chunk_labels if label not in found_chunk_labels
+    ]
 
     merged_results = sorted(
         merged.values(),
@@ -93,6 +133,8 @@ def main():
         "chunk_count": len(chunk_summaries),
         "results_count": len(merged_results),
         "dedupe_key": "listing_id_or_listing_url",
+        "expected_chunk_count": len(expected_chunk_labels),
+        "missing_chunk_labels": missing_chunk_labels,
         "chunk_summaries": chunk_summaries,
     }
 

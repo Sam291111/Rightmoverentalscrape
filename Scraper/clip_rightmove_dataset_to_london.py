@@ -356,6 +356,23 @@ def _build_summary(source_payload, source_path, clipped_rows, outside_rows, rows
     }
 
 
+def _empty_clip_payload(source_payload, boundary_name, boundary_path, boroughs_path):
+    return {
+        "meta": {
+            **source_payload.get("meta", {}),
+            "london_clip": {
+                "generated_at": datetime.now().isoformat(),
+                "boundary_path": str(boundary_path),
+                "boroughs_path": str(boroughs_path) if boroughs_path else None,
+                "boundary_name": boundary_name,
+                "rows_with_coordinates": 0,
+                "rows_inside_london": 0,
+            },
+        },
+        "results": [],
+    }
+
+
 def _row_to_csv_dict(row, fieldnames):
     csv_row = {}
     for field in fieldnames:
@@ -408,7 +425,33 @@ def main():
     source_payload = _load_dataset(input_path)
     rows_df = pd.DataFrame(source_payload.get("results", []))
     if rows_df.empty:
-        raise RuntimeError("Source dataset has no rows to clip.")
+        boundary = gpd.read_file(boundary_path)
+        if boundary.empty:
+            raise RuntimeError(f"Boundary file has no features: {boundary_path}")
+        boundary_name = str(boundary.iloc[0].get("NAME") or "Greater London")
+        clipped_payload = _empty_clip_payload(
+            source_payload,
+            boundary_name,
+            boundary_path,
+            boroughs_path,
+        )
+        summary = _build_summary(
+            source_payload,
+            input_path,
+            pd.DataFrame(),
+            pd.DataFrame(),
+            0,
+            boundary_name,
+        )
+        json_path, csv_path, summary_path = save_outputs(args.output_dir, input_path, clipped_payload, summary)
+
+        print("\nSaved London-clipped outputs:")
+        print(f"  JSON:    {json_path}")
+        print(f"  CSV:     {csv_path}")
+        print(f"  Summary: {summary_path}")
+        print("  Rows kept: 0 / 0")
+        print("  Rows missing coordinates: 0")
+        return
 
     clipped = _clip_to_boundary(rows_df, boundary_path, boroughs_path)
     inside_rows = _add_derived_tags(clipped["inside_rows"]).replace({pd.NA: None})

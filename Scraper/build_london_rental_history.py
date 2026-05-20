@@ -409,6 +409,37 @@ def _write_csv(path, rows):
             writer.writerow(row)
 
 
+def _empty_history(run_files):
+    return {
+        "meta": {
+            "generated_at": datetime.now().isoformat(),
+            "source_run_files": [path.name for path in sorted(run_files)],
+            "run_count": len(run_files),
+            "listing_rows": 0,
+            "dimensions": [
+                "build_to_rent",
+                "student_suitable",
+                "price_reduced",
+                "deposit",
+                "zero_deposit",
+                "online_viewings",
+                "pets",
+                "bills",
+                "luxury",
+                "investment_opportunity",
+                "property_type",
+                "furnish_type",
+                "let_type",
+                "bedrooms",
+            ],
+        },
+        "runs": [],
+        "borough_stats": [],
+        "category_stats": [],
+        "borough_category_stats": [],
+    }
+
+
 def _json_value(value):
     if pd.isna(value):
         return None
@@ -552,6 +583,37 @@ def _dashboard_payload(history):
     }
 
 
+def _empty_listings_payload():
+    return {
+        "meta": {
+            "generated_at": datetime.now().isoformat(),
+            "row_count": 0,
+        },
+        "filters": {
+            "runs": [],
+            "boroughs": [],
+            "dimensions": [
+                "property_type",
+                "bedrooms",
+                "build_to_rent",
+                "student_suitable",
+                "price_reduced",
+                "deposit",
+                "zero_deposit",
+                "online_viewings",
+                "pets",
+                "bills",
+                "luxury",
+                "investment_opportunity",
+                "furnish_type",
+                "let_type",
+            ],
+            "dimension_values": {},
+        },
+        "rows": [],
+    }
+
+
 def main():
     args = parse_args()
     input_dir = _resolve_path(args.input_dir)
@@ -565,12 +627,6 @@ def main():
     for run_file in run_files:
         all_rows.extend(_load_run_rows(run_file))
 
-    if not all_rows:
-        raise FileNotFoundError("No London-clipped cleaned run files were found.")
-
-    df = pd.DataFrame(all_rows)
-    history = _history_payload(df, run_files)
-
     json_path = output_dir / "rightmove_london_history_metrics.json"
     runs_csv = output_dir / "rightmove_london_runs.csv"
     borough_csv = output_dir / "rightmove_london_borough_stats.csv"
@@ -578,6 +634,34 @@ def main():
     borough_category_csv = output_dir / "rightmove_london_borough_category_stats.csv"
     dashboard_json = pages_data_dir / "dashboard.json"
     listings_json = pages_data_dir / "listings.json"
+
+    if not run_files:
+        raise FileNotFoundError("No London-clipped cleaned run files were found.")
+
+    if not all_rows:
+        history = _empty_history(run_files)
+        _write_json(json_path, history)
+        _write_csv(runs_csv, history["runs"])
+        _write_csv(borough_csv, history["borough_stats"])
+        _write_csv(category_csv, history["category_stats"])
+        _write_csv(borough_category_csv, history["borough_category_stats"])
+        _write_json(dashboard_json, _dashboard_payload(history))
+        _write_json(listings_json, _empty_listings_payload())
+
+        print("\nSaved London history outputs:")
+        print(f"  JSON: {json_path}")
+        print(f"  Runs CSV: {runs_csv}")
+        print(f"  Borough CSV: {borough_csv}")
+        print(f"  Category CSV: {category_csv}")
+        print(f"  Borough+category CSV: {borough_category_csv}")
+        print(f"  Pages JSON: {dashboard_json}")
+        print(f"  Pages listings JSON: {listings_json}")
+        print(f"  Runs: {history['meta']['run_count']}")
+        print("  Listing rows: 0")
+        return
+
+    df = pd.DataFrame(all_rows)
+    history = _history_payload(df, run_files)
 
     _write_json(json_path, history)
     _write_csv(runs_csv, history["runs"])

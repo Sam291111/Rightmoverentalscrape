@@ -29,6 +29,14 @@ def parse_args():
         default=str(DEFAULT_OUTPUT_DIR),
         help="Directory for the merged enriched outputs.",
     )
+    parser.add_argument(
+        "--search-results-json",
+        help="Optional merged search-results JSON used to create search-only fallback rows for missing detail chunks.",
+    )
+    parser.add_argument(
+        "--chunk-manifest-json",
+        help="Optional detail chunk manifest JSON used to detect missing chunk artifacts.",
+    )
     return parser.parse_args()
 
 
@@ -43,6 +51,21 @@ def _find_chunk_jsons(input_dir):
     input_dir = Path(input_dir)
     direct = sorted(input_dir.glob("**/rightmove_rental_enriched_results_*.json"))
     return [path for path in direct if path.is_file()]
+
+
+def _csv_fieldnames(enriched_results):
+    if not enriched_results:
+        return []
+
+    fieldnames = list(_row_for_csv(enriched_results[0]).keys())
+    seen = set(fieldnames)
+    for item in enriched_results[1:]:
+        for key in _row_for_csv(item).keys():
+            if key in seen:
+                continue
+            fieldnames.append(key)
+            seen.add(key)
+    return fieldnames
 
 
 def _row_for_csv(item):
@@ -97,6 +120,15 @@ def _row_for_csv(item):
         "detail_latitude": item.get("detail_latitude"),
         "detail_longitude": item.get("detail_longitude"),
         "coordinate_source": item.get("coordinate_source"),
+        "detail_extraction_failed": item.get("detail_extraction_failed"),
+        "detail_fallback_mode": item.get("detail_fallback_mode"),
+        "detail_failure_type": item.get("detail_failure_type"),
+        "detail_failure_error": item.get("detail_failure_error"),
+        "detail_failure_http_status": item.get("detail_failure_http_status"),
+        "detail_failure_browser_error_code": item.get("detail_failure_browser_error_code"),
+        "detail_failure_page_title": item.get("detail_failure_page_title"),
+        "detail_failure_current_url": item.get("detail_failure_current_url"),
+        "missing_detail_chunk_label": item.get("missing_detail_chunk_label"),
         "added_text": item.get("added_text"),
         "description": item.get("description"),
         "key_features_text": item.get("key_features_text"),
@@ -104,6 +136,52 @@ def _row_for_csv(item):
         "floorplan_urls": json.dumps(item.get("floorplan_urls", []), ensure_ascii=False),
         "epc_urls": json.dumps(item.get("epc_urls", []), ensure_ascii=False),
     }
+
+
+def _search_only_fallback_row(search_row, *, reason, chunk_label):
+    merged = dict(search_row)
+    merged["search_summary"] = search_row.get("summary")
+    merged["search_image_urls"] = search_row.get("image_urls", [])
+    merged["search_location"] = search_row.get("location")
+    merged["search_postcode"] = search_row.get("postcode")
+    merged["search_latitude"] = search_row.get("latitude")
+    merged["search_longitude"] = search_row.get("longitude")
+    merged["detail_latitude"] = None
+    merged["detail_longitude"] = None
+    merged["detail_extraction_failed"] = True
+    merged["detail_fallback_mode"] = "search_only_missing_chunk"
+    merged["detail_failure_type"] = "detail_chunk_missing"
+    merged["detail_failure_error"] = reason
+    merged["detail_failure_http_status"] = None
+    merged["detail_failure_browser_error_code"] = None
+    merged["detail_failure_page_title"] = None
+    merged["detail_failure_current_url"] = merged.get("listing_url")
+    merged["missing_detail_chunk_label"] = chunk_label
+    if search_row.get("latitude") not in (None, "") and search_row.get("longitude") not in (None, ""):
+        merged["latitude"] = search_row.get("latitude")
+        merged["longitude"] = search_row.get("longitude")
+        merged["coordinate_source"] = "search_api"
+    else:
+        merged["latitude"] = search_row.get("latitude")
+        merged["longitude"] = search_row.get("longitude")
+        merged["coordinate_source"] = "missing"
+    return merged
+
+
+def _load_search_results(path_arg):
+    if not path_arg:
+        return []
+    path = _resolve_path(path_arg)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload.get("results", [])
+
+
+def _load_chunk_manifest(path_arg):
+    if not path_arg:
+        return []
+    path = _resolve_path(path_arg)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload.get("include", [])
 
 
 def save_outputs(output_dir, enriched_results, metadata):
@@ -121,7 +199,7 @@ def save_outputs(output_dir, enriched_results, metadata):
         json.dump(dataset, handle, indent=2, ensure_ascii=False)
 
     csv_path = output_path / f"rightmove_rental_enriched_results_{timestamp}.csv"
-    fieldnames = list(_row_for_csv(enriched_results[0]).keys()) if enriched_results else []
+    fieldnames = _csv_fieldnames(enriched_results)
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -135,20 +213,27 @@ def main():
     args = parse_args()
     input_dir = _resolve_path(args.input_dir)
     output_dir = _resolve_path(args.output_dir)
+    search_results = _load_search_results(args.search_results_json)
+    chunk_manifest = _load_chunk_manifest(args.chunk_manifest_json)
 
     chunk_jsons = _find_chunk_jsons(input_dir)
-    if not chunk_jsons:
-        raise FileNotFoundError("No chunk enriched JSON files were found.")
 
     merged_by_key = {}
     source_files = []
     source_search_json = None
     total_completed = 0
+    completed_chunk_labels = set()
 
     for path in chunk_jsons:
         payload = json.loads(path.read_text())
         meta = payload.get("meta", {})
         source_files.append(path.name)
+        try:
+            relative_parts = path.relative_to(input_dir).parts
+            if relative_parts:
+                completed_chunk_labels.add(relative_parts[0].replace("detail-", "", 1))
+        except ValueError:
+            pass
         if not source_search_json and meta.get("source_search_json"):
             source_search_json = meta["source_search_json"]
         total_completed += int(meta.get("completed_count") or len(payload.get("results", [])))
@@ -157,6 +242,31 @@ def main():
             if not key:
                 continue
             merged_by_key[key] = item
+
+    missing_chunk_labels = []
+    search_only_fallback_count = 0
+    if chunk_manifest and search_results:
+        for chunk in chunk_manifest:
+            chunk_label = chunk.get("chunk_label")
+            if not chunk_label or chunk_label in completed_chunk_labels:
+                continue
+            missing_chunk_labels.append(chunk_label)
+            start_index = int(chunk.get("start_index") or 0)
+            end_index = int(chunk.get("end_index") or start_index)
+            for row in search_results[start_index:end_index]:
+                key = str(row.get("listing_id") or row.get("listing_url") or "")
+                if not key or key in merged_by_key:
+                    continue
+                merged_by_key[key] = _search_only_fallback_row(
+                    row,
+                    reason=f"detail chunk artifact missing for {chunk_label}",
+                    chunk_label=chunk_label,
+                )
+                search_only_fallback_count += 1
+
+    if not chunk_jsons and not search_only_fallback_count:
+        if not args.search_results_json and not args.chunk_manifest_json:
+            raise FileNotFoundError("No chunk enriched JSON files were found.")
 
     merged_results = sorted(
         merged_by_key.values(),
@@ -173,6 +283,11 @@ def main():
         "merged_chunk_files": sorted(source_files),
         "chunk_file_count": len(chunk_jsons),
         "completed_count_total": total_completed,
+        "expected_chunk_count": len(chunk_manifest),
+        "missing_chunk_labels": missing_chunk_labels,
+        "search_only_fallback_count": sum(
+            1 for item in merged_results if item.get("detail_fallback_mode")
+        ),
         "results_count": len(merged_results),
     }
 
