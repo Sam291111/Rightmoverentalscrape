@@ -273,6 +273,24 @@ def _merge_search_payloads(area_payloads, output_dir):
     return save_outputs(output_dir, merged_results, [], metadata)
 
 
+def _save_empty_merged_output(output_dir, *, config_path, config_generated_at, failed_units):
+    metadata = {
+        "generated_at": datetime.now().isoformat(),
+        "market": "rent",
+        "collector": "postcode_london_rental_search",
+        "area_count": 0,
+        "area_names": [],
+        "results_count": 0,
+        "dedupe_key": "listing_id_or_listing_url",
+        "config_path": str(config_path),
+        "config_generated_at": config_generated_at,
+        "failed_unit_count": len(failed_units),
+        "failed_units": failed_units,
+        "stop_reason": "all_search_units_failed",
+    }
+    return save_outputs(output_dir, [], [], metadata)
+
+
 def main():
     args = parse_args()
     output_dir = _resolve_path(args.output_dir)
@@ -341,9 +359,16 @@ def main():
         leaf_area_payloads.append(area_record)
 
     if not leaf_area_payloads:
-        raise RuntimeError("All postcode outcode searches failed; no search-stage results were collected.")
-
-    merged_json, merged_csv, _ = _merge_search_payloads(leaf_area_payloads, output_dir)
+        if not args.continue_on_search_error:
+            raise RuntimeError("All postcode outcode searches failed; no search-stage results were collected.")
+        merged_json, merged_csv, _ = _save_empty_merged_output(
+            output_dir,
+            config_path=config_path,
+            config_generated_at=config_payload.get("generated_at"),
+            failed_units=failed_units,
+        )
+    else:
+        merged_json, merged_csv, _ = _merge_search_payloads(leaf_area_payloads, output_dir)
 
     report = {
         "generated_at": datetime.now().isoformat(),

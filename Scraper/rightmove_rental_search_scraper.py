@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import undetected_chromedriver as uc
 from selenium.common.exceptions import NoSuchWindowException, WebDriverException
+from urllib3.exceptions import MaxRetryError, ReadTimeoutError
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -168,14 +169,34 @@ def _driver_window_available(driver):
         return False
     try:
         return bool(driver.window_handles)
-    except WebDriverException:
+    except Exception:
         return False
+
+
+def _is_browser_session_error(error):
+    if error is None:
+        return False
+    if isinstance(error, (ReadTimeoutError, MaxRetryError, TimeoutError, NoSuchWindowException, WebDriverException)):
+        return True
+    error_text = str(error).lower()
+    return (
+        "httpconnectionpool(host='localhost'" in error_text
+        or "read timed out" in error_text
+        or "max retries exceeded" in error_text
+        or "disconnected" in error_text
+        or "invalid session id" in error_text
+    )
 
 
 def _recreate_browser(driver, landing_url, *, headless, user_data_dir, reprompt):
     _safe_quit(driver)
     driver = setup_browser(headless=headless, user_data_dir=user_data_dir)
-    driver.get(landing_url)
+    try:
+        driver.get(landing_url)
+    except Exception:
+        _safe_quit(driver)
+        driver = setup_browser(headless=headless, user_data_dir=user_data_dir)
+        driver.get(landing_url)
     if reprompt:
         prompt_manual_ready()
     return driver
@@ -193,7 +214,7 @@ def _navigate_with_recovery(driver, url, *, headless, user_data_dir, reprompt):
             )
         driver.get(url)
         return driver
-    except NoSuchWindowException:
+    except (NoSuchWindowException, WebDriverException, ReadTimeoutError, MaxRetryError, TimeoutError):
         return _recreate_browser(
             driver,
             url,
@@ -206,16 +227,7 @@ def _navigate_with_recovery(driver, url, *, headless, user_data_dir, reprompt):
 def _current_url_with_recovery(driver, landing_url, *, headless, user_data_dir, reprompt):
     try:
         current_url = driver.current_url
-    except NoSuchWindowException:
-        driver = _recreate_browser(
-            driver,
-            landing_url,
-            headless=headless,
-            user_data_dir=user_data_dir,
-            reprompt=reprompt,
-        )
-        current_url = driver.current_url
-    except WebDriverException:
+    except (NoSuchWindowException, WebDriverException, ReadTimeoutError, MaxRetryError, TimeoutError):
         driver = _recreate_browser(
             driver,
             landing_url,
@@ -923,59 +935,97 @@ def main():
             page_index = start_index + (page_offset * args.page_size)
             last_page_index = page_index
             page_url = _build_page_url(start_url, page_index, keep_zero_index)
+            max_page_attempts = 3
+            page_context = None
 
             print(f"\nScraping rental page index {page_index}")
             print(f"  Page URL: {page_url}")
 
-            driver = _navigate_with_recovery(
-                driver,
-                page_url,
-                headless=args.headless,
-                user_data_dir=args.user_data_dir,
-                reprompt=args.interactive,
-            )
-            if not wait_for_cards(driver):
-                if page_offset == 0:
-                    raise RuntimeError(f"Cards did not appear for page index {page_index}")
-                print(
-                    "  No cards appeared on this page. Stopping pagination and keeping the "
-                    "results collected so far. This usually means the requested page is past "
-                    "the available result range or Rightmove stopped serving deeper pages."
-                )
-                stop_reason = "cards_missing_after_results_started"
-                break
-            time.sleep(args.wait_seconds)
+            for page_attempt in range(1, max_page_attempts + 1):
+                try:
+                    driver = _navigate_with_recovery(
+                        driver,
+                        page_url,
+                        headless=args.headless,
+                        user_data_dir=args.user_data_dir,
+                        reprompt=args.interactive,
+                    )
+                    if not wait_for_cards(driver):
+                        if page_offset == 0:
+                            raise RuntimeError(f"Cards did not appear for page index {page_index}")
+                        print(
+                            "  No cards appeared on this page. Stopping pagination and keeping the "
+                            "results collected so far. This usually means the requested page is past "
+                            "the available result range or Rightmove stopped serving deeper pages."
+                        )
+                        stop_reason = "cards_missing_after_results_started"
+                        break
+                    time.sleep(args.wait_seconds)
 
-            dom_cards = scrape_dom_cards(driver, page_index)
-            api_candidates = _build_api_candidate_urls(page_url, driver.current_url)
-            api_attempts = fetch_api_payload_from_candidates(driver, api_candidates)
-            selected_attempt = _choose_best_api_attempt(api_attempts, dom_cards, page_index)
-            payload = selected_attempt["payload"]
-            api_url = selected_attempt["api_url"]
-            api_listings = selected_attempt["api_listings"]
-            if not reported_search_meta:
-                reported_search_meta = _payload_search_meta(payload)
+                    resolved_page_url, driver = _current_url_with_recovery(
+                        driver,
+                        page_url,
+                        headless=args.headless,
+                        user_data_dir=args.user_data_dir,
+                        reprompt=args.interactive,
+                    )
+                    dom_cards = scrape_dom_cards(driver, page_index)
+                    api_candidates = _build_api_candidate_urls(page_url, resolved_page_url)
+                    api_attempts = fetch_api_payload_from_candidates(driver, api_candidates)
+                    selected_attempt = _choose_best_api_attempt(api_attempts, dom_cards, page_index)
+                    payload = selected_attempt["payload"]
+                    api_url = selected_attempt["api_url"]
+                    api_listings = selected_attempt["api_listings"]
+                    if not reported_search_meta:
+                        reported_search_meta = _payload_search_meta(payload)
+
+                    page_context = {
+                        "resolved_page_url": resolved_page_url,
+                        "dom_cards": dom_cards,
+                        "api_attempts": api_attempts,
+                        "selected_attempt": selected_attempt,
+                        "payload": payload,
+                        "api_url": api_url,
+                        "api_listings": api_listings,
+                    }
+                    break
+                except Exception as exc:
+                    if page_attempt >= max_page_attempts or not _is_browser_session_error(exc):
+                        raise
+                    print(f"  retrying page after browser session recovery ({page_attempt}/{max_page_attempts - 1} retries used)")
+                    driver = _recreate_browser(
+                        driver,
+                        page_url,
+                        headless=args.headless,
+                        user_data_dir=args.user_data_dir,
+                        reprompt=args.interactive,
+                    )
+
+            if stop_reason == "cards_missing_after_results_started":
+                break
+            if page_context is None:
+                raise RuntimeError(f"Failed to collect search page context for page index {page_index}")
 
             raw_pages.append(
                 {
                     "page_index": page_index,
                     "page_url": page_url,
-                    "resolved_page_url": driver.current_url,
-                    "api_url": api_url,
+                    "resolved_page_url": page_context["resolved_page_url"],
+                    "api_url": page_context["api_url"],
                     "api_attempts": [
                         {
                             key: value
                             for key, value in attempt.items()
                             if key not in {"payload", "api_listings"}
                         }
-                        for attempt in api_attempts
+                        for attempt in page_context["api_attempts"]
                     ],
-                    "payload": payload,
+                    "payload": page_context["payload"],
                 }
             )
 
             by_id = {}
-            for item in api_listings + dom_cards:
+            for item in page_context["api_listings"] + page_context["dom_cards"]:
                 listing_id = item.get("listing_id")
                 listing_url = item.get("listing_url")
                 key = listing_id or listing_url
@@ -992,9 +1042,9 @@ def main():
             new_unique_count = len(all_results) - unique_before_page
 
             print(
-                f"  API URL: {api_url}\n"
-                f"  API/DOM overlap: ids={selected_attempt.get('overlap_ids', 0)} urls={selected_attempt.get('overlap_urls', 0)}\n"
-                f"  Found {len(api_listings)} API listings, {len(dom_cards)} DOM cards, "
+                f"  API URL: {page_context['api_url']}\n"
+                f"  API/DOM overlap: ids={page_context['selected_attempt'].get('overlap_ids', 0)} urls={page_context['selected_attempt'].get('overlap_urls', 0)}\n"
+                f"  Found {len(page_context['api_listings'])} API listings, {len(page_context['dom_cards'])} DOM cards, "
                 f"{len(by_id)} merged listings on this page."
             )
             pages_scraped += 1
@@ -1059,7 +1109,7 @@ def main():
         print(f"  Listings: {len(merged_results)}")
 
     finally:
-        driver.quit()
+        _safe_quit(driver)
 
 
 if __name__ == "__main__":
