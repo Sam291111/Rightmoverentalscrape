@@ -1,8 +1,11 @@
 {
   "meta": {
-    "generated_at": "2026-05-20T15:31:06.263531",
+    "generated_at": "2026-05-20T17:44:50.594996",
     "source_run_files": [
       "rightmove_cleaned_dataset_20260520_153000_london_clipped_20260520_153034.json"
+    ],
+    "source_snapshot_files": [
+      "rightmove_london_listings_20260520_153034.json"
     ],
     "run_count": 1,
     "listing_rows": 35577,

@@ -22,6 +22,7 @@ DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "output"
 DEFAULT_HISTORY_DIR = DEFAULT_OUTPUT_DIR / "history"
 DEFAULT_PAGES_DATA_DIR = SCRIPT_DIR.parent / "docs" / "data"
 RUN_FILE_RE = re.compile(r"rightmove_cleaned_dataset_(\d{8}_\d{6})_london_clipped_(\d{8}_\d{6})\.json$")
+SNAPSHOT_FILE_RE = re.compile(r"rightmove_london_listings_(\d{8}_\d{6})\.json$")
 
 
 def parse_args():
@@ -75,6 +76,13 @@ def _find_run_files(input_dir):
     return candidates
 
 
+def _find_snapshot_files(snapshot_dir):
+    snapshot_dir = Path(snapshot_dir)
+    if not snapshot_dir.exists():
+        return []
+    return sorted(snapshot_dir.glob("rightmove_london_listings_*.json"))
+
+
 def _parse_run_file(path):
     match = RUN_FILE_RE.match(path.name)
     if not match:
@@ -84,6 +92,19 @@ def _parse_run_file(path):
         "cleaned_timestamp": cleaned_ts,
         "run_timestamp": clipped_ts,
         "run_date": clipped_ts[:8],
+        "source_run_file": path.name,
+    }
+
+
+def _parse_snapshot_file(path):
+    match = SNAPSHOT_FILE_RE.match(path.name)
+    if not match:
+        return None
+    run_timestamp = match.group(1)
+    return {
+        "run_timestamp": run_timestamp,
+        "run_date": run_timestamp[:8],
+        "snapshot_file": path.name,
     }
 
 
@@ -321,13 +342,45 @@ def _load_run_rows(path):
     return rows
 
 
-def _history_payload(df, run_files):
+def _empty_run_summary(run_timestamp, run_date):
+    return {
+        "run_timestamp": run_timestamp,
+        "run_date": run_date,
+        "listing_count": 0,
+        "median_price": None,
+        "mean_price": None,
+        "min_price": None,
+        "max_price": None,
+        "median_deposit": None,
+        "mean_deposit": None,
+        "deposit_listed_count": 0,
+        "borough_count": 0,
+        "build_to_rent_count": 0,
+        "student_suitable_count": 0,
+        "price_reduced_count": 0,
+    }
+
+
+def _history_payload(df, snapshot_records):
     run_summaries = []
-    for _, run_df in df.groupby("run_timestamp", dropna=False):
-        run_summaries.append(_run_summary(run_df))
+    for record in snapshot_records:
+        payload = record["payload"]
+        rows = payload.get("rows", [])
+        meta = payload.get("meta", {})
+        run_timestamp = meta.get("run_timestamp") or record["run_timestamp"]
+        run_date = meta.get("run_date") or record["run_date"]
+        if rows:
+            run_df = pd.DataFrame(rows)
+            if "run_timestamp" not in run_df.columns:
+                run_df["run_timestamp"] = run_timestamp
+            if "run_date" not in run_df.columns:
+                run_df["run_date"] = run_date
+            run_summaries.append(_run_summary(run_df))
+        else:
+            run_summaries.append(_empty_run_summary(run_timestamp, run_date))
     run_summaries = sorted(run_summaries, key=lambda row: row["run_timestamp"])
 
-    borough_stats = _group_rows(df, ["run_timestamp", "run_date", "london_borough"])
+    borough_stats = _group_rows(df, ["run_timestamp", "run_date", "london_borough"]) if not df.empty else []
 
     category_specs = [
         ("build_to_rent", "build_to_rent_category"),
@@ -349,13 +402,15 @@ def _history_payload(df, run_files):
     category_stats = []
     borough_category_stats = []
     for dimension_name, column_name in category_specs:
-        grouped = _group_rows(df, ["run_timestamp", "run_date", column_name])
+        grouped = _group_rows(df, ["run_timestamp", "run_date", column_name]) if not df.empty else []
         for row in grouped:
             row["dimension"] = dimension_name
             row["value"] = row.pop(column_name)
             category_stats.append(row)
 
-        grouped_borough = _group_rows(df, ["run_timestamp", "run_date", "london_borough", column_name])
+        grouped_borough = (
+            _group_rows(df, ["run_timestamp", "run_date", "london_borough", column_name]) if not df.empty else []
+        )
         for row in grouped_borough:
             row["dimension"] = dimension_name
             row["value"] = row.pop(column_name)
@@ -364,8 +419,13 @@ def _history_payload(df, run_files):
     return {
         "meta": {
             "generated_at": datetime.now().isoformat(),
-            "source_run_files": [path.name for path in sorted(run_files)],
-            "run_count": int(df["run_timestamp"].nunique()),
+            "source_run_files": [
+                record["payload"].get("meta", {}).get("source_run_file") or record.get("source_run_file")
+                for record in snapshot_records
+                if record["payload"].get("meta", {}).get("source_run_file") or record.get("source_run_file")
+            ],
+            "source_snapshot_files": [record["path"].name for record in snapshot_records],
+            "run_count": len(snapshot_records),
             "listing_rows": int(len(df)),
             "dimensions": [spec[0] for spec in category_specs],
         },
@@ -391,9 +451,9 @@ def _history_payload(df, run_files):
     }
 
 
-def _write_json(path, payload):
+def _write_json(path, payload, *, indent=2):
     with path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, ensure_ascii=False)
+        json.dump(payload, handle, indent=indent, ensure_ascii=False, separators=None if indent else (",", ":"))
 
 
 def _write_csv(path, rows):
@@ -409,12 +469,13 @@ def _write_csv(path, rows):
             writer.writerow(row)
 
 
-def _empty_history(run_files):
+def _empty_history(source_files):
     return {
         "meta": {
             "generated_at": datetime.now().isoformat(),
-            "source_run_files": [path.name for path in sorted(run_files)],
-            "run_count": len(run_files),
+            "source_run_files": [path.name for path in sorted(source_files)],
+            "source_snapshot_files": [],
+            "run_count": len(source_files),
             "listing_rows": 0,
             "dimensions": [
                 "build_to_rent",
@@ -446,7 +507,7 @@ def _json_value(value):
     return value
 
 
-def _listings_payload(df):
+def _listings_payload(df, *, meta_extra=None):
     listing_fields = [
         "run_timestamp",
         "run_date",
@@ -481,6 +542,7 @@ def _listings_payload(df):
         "bills_category",
         "luxury_category",
         "investment_opportunity_category",
+        "epc_rating",
         "latitude",
         "longitude",
     ]
@@ -506,11 +568,15 @@ def _listings_payload(df):
         "let_type": sorted({str(value) for value in df["let_type_category"].dropna().tolist() if str(value).strip()}),
     }
 
+    meta = {
+        "generated_at": datetime.now().isoformat(),
+        "row_count": len(rows),
+    }
+    if meta_extra:
+        meta.update(meta_extra)
+
     return {
-        "meta": {
-            "generated_at": datetime.now().isoformat(),
-            "row_count": len(rows),
-        },
+        "meta": meta,
         "filters": {
             "runs": [
                 {
@@ -583,12 +649,16 @@ def _dashboard_payload(history):
     }
 
 
-def _empty_listings_payload():
+def _empty_listings_payload(*, meta_extra=None):
+    meta = {
+        "generated_at": datetime.now().isoformat(),
+        "row_count": 0,
+    }
+    if meta_extra:
+        meta.update(meta_extra)
+
     return {
-        "meta": {
-            "generated_at": datetime.now().isoformat(),
-            "row_count": 0,
-        },
+        "meta": meta,
         "filters": {
             "runs": [],
             "boroughs": [],
@@ -614,6 +684,42 @@ def _empty_listings_payload():
     }
 
 
+def _snapshot_path(snapshot_dir, run_timestamp):
+    return snapshot_dir / f"rightmove_london_listings_{run_timestamp}.json"
+
+
+def _build_snapshot_payload(run_file):
+    parsed = _parse_run_file(run_file)
+    if not parsed:
+        return None
+    rows = _load_run_rows(run_file)
+    meta_extra = {
+        "run_timestamp": parsed["run_timestamp"],
+        "run_date": parsed["run_date"],
+        "source_run_file": parsed["source_run_file"],
+    }
+    if not rows:
+        return _empty_listings_payload(meta_extra=meta_extra)
+    df = pd.DataFrame(rows)
+    return _listings_payload(df, meta_extra=meta_extra)
+
+
+def _load_snapshot_record(path):
+    payload = json.loads(path.read_text())
+    parsed = _parse_snapshot_file(path) or {}
+    meta = payload.get("meta", {})
+    run_timestamp = meta.get("run_timestamp") or parsed.get("run_timestamp")
+    run_date = meta.get("run_date") or parsed.get("run_date") or (run_timestamp[:8] if run_timestamp else None)
+    source_run_file = meta.get("source_run_file")
+    return {
+        "path": path,
+        "payload": payload,
+        "run_timestamp": run_timestamp,
+        "run_date": run_date,
+        "source_run_file": source_run_file,
+    }
+
+
 def main():
     args = parse_args()
     input_dir = _resolve_path(args.input_dir)
@@ -621,11 +727,34 @@ def main():
     pages_data_dir = _resolve_path(args.pages_data_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     pages_data_dir.mkdir(parents=True, exist_ok=True)
+    snapshot_dir = output_dir / "snapshots"
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
 
     run_files = _find_run_files(input_dir)
-    all_rows = []
+    existing_snapshots = {
+        record["run_timestamp"]: record
+        for record in (_load_snapshot_record(path) for path in _find_snapshot_files(snapshot_dir))
+        if record["run_timestamp"]
+    }
+
     for run_file in run_files:
-        all_rows.extend(_load_run_rows(run_file))
+        parsed = _parse_run_file(run_file)
+        if not parsed:
+            continue
+        run_timestamp = parsed["run_timestamp"]
+        if run_timestamp in existing_snapshots:
+            continue
+        snapshot_payload = _build_snapshot_payload(run_file)
+        if snapshot_payload is None:
+            continue
+        snapshot_path = _snapshot_path(snapshot_dir, run_timestamp)
+        _write_json(snapshot_path, snapshot_payload, indent=None)
+        existing_snapshots[run_timestamp] = _load_snapshot_record(snapshot_path)
+
+    snapshot_records = sorted(existing_snapshots.values(), key=lambda record: record["run_timestamp"])
+    all_rows = []
+    for record in snapshot_records:
+        all_rows.extend(record["payload"].get("rows", []))
 
     json_path = output_dir / "rightmove_london_history_metrics.json"
     runs_csv = output_dir / "rightmove_london_runs.csv"
@@ -635,10 +764,10 @@ def main():
     dashboard_json = pages_data_dir / "dashboard.json"
     listings_json = pages_data_dir / "listings.json"
 
-    if not run_files:
-        raise FileNotFoundError("No London-clipped cleaned run files were found.")
+    if not run_files and not snapshot_records:
+        raise FileNotFoundError("No London-clipped cleaned run files or listing snapshots were found.")
 
-    if not all_rows:
+    if not snapshot_records:
         history = _empty_history(run_files)
         _write_json(json_path, history)
         _write_csv(runs_csv, history["runs"])
@@ -646,7 +775,7 @@ def main():
         _write_csv(category_csv, history["category_stats"])
         _write_csv(borough_category_csv, history["borough_category_stats"])
         _write_json(dashboard_json, _dashboard_payload(history))
-        _write_json(listings_json, _empty_listings_payload())
+        _write_json(listings_json, _empty_listings_payload(), indent=None)
 
         print("\nSaved London history outputs:")
         print(f"  JSON: {json_path}")
@@ -661,7 +790,8 @@ def main():
         return
 
     df = pd.DataFrame(all_rows)
-    history = _history_payload(df, run_files)
+    history = _history_payload(df, snapshot_records)
+    latest_snapshot = snapshot_records[-1]["payload"]
 
     _write_json(json_path, history)
     _write_csv(runs_csv, history["runs"])
@@ -669,7 +799,7 @@ def main():
     _write_csv(category_csv, history["category_stats"])
     _write_csv(borough_category_csv, history["borough_category_stats"])
     _write_json(dashboard_json, _dashboard_payload(history))
-    _write_json(listings_json, _listings_payload(df))
+    _write_json(listings_json, latest_snapshot, indent=None)
 
     print("\nSaved London history outputs:")
     print(f"  JSON: {json_path}")
@@ -679,6 +809,7 @@ def main():
     print(f"  Borough+category CSV: {borough_category_csv}")
     print(f"  Pages JSON: {dashboard_json}")
     print(f"  Pages listings JSON: {listings_json}")
+    print(f"  Snapshot dir: {snapshot_dir}")
     print(f"  Runs: {history['meta']['run_count']}")
     print(f"  Listing rows: {history['meta']['listing_rows']}")
 

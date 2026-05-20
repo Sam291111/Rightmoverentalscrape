@@ -397,14 +397,14 @@ jobs:
       - name: Commit updated outputs
         shell: bash
         run: |
-          if git diff --quiet -- Scraper/output docs; then
-            echo "No output or dashboard changes to commit."
+          if git diff --quiet -- Scraper/output/history docs/data; then
+            echo "No lightweight history or dashboard changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Scraper/output docs
-          git commit -m "Update London rental outputs and dashboard data"
+          git add Scraper/output/history docs/data
+          git commit -m "Update London rental history and dashboard data"
           for attempt in 1 2 3; do
             echo "Sync/push attempt $attempt"
             if ! git pull --rebase origin main; then
