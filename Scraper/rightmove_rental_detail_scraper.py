@@ -28,6 +28,7 @@ from pathlib import Path
 
 import undetected_chromedriver as uc
 from selenium.common.exceptions import NoSuchWindowException, WebDriverException
+from urllib3.exceptions import MaxRetryError, ReadTimeoutError
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -274,8 +275,27 @@ def _driver_window_available(driver):
         return False
     try:
         return bool(driver.window_handles)
-    except WebDriverException:
+    except Exception:
         return False
+
+
+def _is_browser_session_error(error):
+    if error is None:
+        return False
+    if isinstance(error, (WebDriverException, ReadTimeoutError, MaxRetryError, TimeoutError)):
+        return True
+    text = str(error)
+    return any(
+        marker in text
+        for marker in [
+            "HTTPConnectionPool(host='localhost'",
+            "Max retries exceeded with url: /session/",
+            "Read timed out",
+            "/window/handles",
+            "/execute/sync",
+            "/url",
+        ]
+    )
 
 
 def _enable_network_blocking(driver):
@@ -327,10 +347,14 @@ def _classify_listing_failure(driver, error, listing_url):
         failure_type = "http_error"
     elif browser_error_match:
         failure_type = "browser_error"
+    elif _is_browser_session_error(error):
+        failure_type = "browser_session_timeout"
     elif error and "Page did not finish loading" in str(error):
         failure_type = "page_load_timeout"
     elif error and "Property content did not appear" in str(error):
         failure_type = "detail_content_missing"
+    elif error and "Detail extraction failed" in str(error):
+        failure_type = "detail_extraction_error"
 
     failure = {
         "listing_url": listing_url,
@@ -349,7 +373,12 @@ def _classify_listing_failure(driver, error, listing_url):
 def _recreate_browser(driver, landing_url, reprompt, block_images, headless, user_data_dir):
     _safe_quit(driver)
     driver = setup_browser(block_images=block_images, headless=headless, user_data_dir=user_data_dir)
-    driver.get(landing_url)
+    try:
+        driver.get(landing_url)
+    except Exception:
+        _safe_quit(driver)
+        driver = setup_browser(block_images=block_images, headless=headless, user_data_dir=user_data_dir)
+        driver.get(landing_url)
     if reprompt:
         prompt_manual_ready()
     return driver
@@ -368,7 +397,7 @@ def _navigate_with_recovery(driver, url, block_images, reprompt, headless, user_
             )
         driver.get(url)
         return driver
-    except NoSuchWindowException:
+    except (NoSuchWindowException, WebDriverException, ReadTimeoutError, MaxRetryError, TimeoutError):
         return _recreate_browser(
             driver,
             url,
@@ -531,7 +560,7 @@ def wait_for_page(driver, timeout=12):
         try:
             state = driver.execute_script("return document.readyState")
             title = _normalise_space(driver.title)
-        except WebDriverException:
+        except Exception:
             time.sleep(0.25)
             continue
         if state in ("interactive", "complete") and title:
@@ -561,7 +590,7 @@ return {
 };
 """
             )
-        except WebDriverException:
+        except Exception:
             time.sleep(0.25)
             continue
 
@@ -1269,27 +1298,47 @@ def main():
 
             print(f"\n[{index}/{len(search_results)}] {listing_url}")
             last_error = None
-            ready = False
+            merged = None
             max_attempts = max(1, args.listing_retries + 1)
             for attempt in range(1, max_attempts + 1):
-                driver = _navigate_with_recovery(
-                    driver,
-                    listing_url,
-                    block_images=args.block_images,
-                    reprompt=args.interactive,
-                    headless=args.headless,
-                    user_data_dir=args.user_data_dir,
-                )
-                if not wait_for_page(driver, timeout=args.page_timeout):
-                    last_error = RuntimeError(f"Page did not finish loading: {listing_url}")
-                elif not wait_for_detail_content(driver, timeout=args.page_timeout):
-                    last_error = RuntimeError(f"Property content did not appear: {listing_url}")
-                else:
-                    ready = True
+                try:
+                    driver = _navigate_with_recovery(
+                        driver,
+                        listing_url,
+                        block_images=args.block_images,
+                        reprompt=args.interactive,
+                        headless=args.headless,
+                        user_data_dir=args.user_data_dir,
+                    )
+                    if not wait_for_page(driver, timeout=args.page_timeout):
+                        raise RuntimeError(f"Page did not finish loading: {listing_url}")
+                    if not wait_for_detail_content(driver, timeout=args.page_timeout):
+                        raise RuntimeError(f"Property content did not appear: {listing_url}")
+
                     time.sleep(args.wait_seconds)
+
+                    snapshot = _scrape_detail_snapshot(driver)
+                    source_patterns = _scan_page_source(driver)
+                    detail_row = _extract_structured_detail(snapshot, source_patterns)
+                    detail_row["listing_id"] = listing_id
+                    detail_row["listing_url"] = listing_url
+                    merged = _merge_search_and_detail(row, detail_row)
+                    raw_page = {
+                        "listing_id": merged.get("listing_id"),
+                        "listing_url": listing_url,
+                        "snapshot": snapshot,
+                        "source_patterns": source_patterns,
+                        "detail_row": detail_row,
+                    }
+                    _write_raw_page(run_dir, raw_page)
                     break
+                except Exception as exc:
+                    last_error = exc
                 if attempt < max_attempts:
-                    print(f"  retrying listing load ({attempt}/{max_attempts - 1} retries used)")
+                    retry_note = "listing extraction"
+                    if _is_browser_session_error(last_error):
+                        retry_note = "browser session recovery"
+                    print(f"  retrying {retry_note} ({attempt}/{max_attempts - 1} retries used)")
                     driver = _recreate_browser(
                         driver,
                         listing_url,
@@ -1299,7 +1348,7 @@ def main():
                         user_data_dir=args.user_data_dir,
                     )
 
-            if not ready:
+            if merged is None:
                 failure = _classify_listing_failure(driver, last_error, listing_url)
                 failure["listing_id"] = listing_id
                 failed_listings.append(failure)
@@ -1332,22 +1381,7 @@ def main():
                     print(f"  skipping failed listing after retries: {failure['error']}")
                     continue
                 raise last_error if last_error else RuntimeError(f"Failed to load listing: {listing_url}")
-
-            snapshot = _scrape_detail_snapshot(driver)
-            source_patterns = _scan_page_source(driver)
-            detail_row = _extract_structured_detail(snapshot, source_patterns)
-            detail_row["listing_id"] = listing_id
-            detail_row["listing_url"] = listing_url
-            merged = _merge_search_and_detail(row, detail_row)
             enriched_results.append(merged)
-            raw_page = {
-                "listing_id": merged.get("listing_id"),
-                "listing_url": listing_url,
-                "snapshot": snapshot,
-                "source_patterns": source_patterns,
-                "detail_row": detail_row,
-            }
-            _write_raw_page(run_dir, raw_page)
             if listing_key:
                 completed_listing_ids.add(listing_key)
 
