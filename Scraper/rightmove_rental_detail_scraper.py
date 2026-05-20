@@ -1136,6 +1136,25 @@ def _merge_search_and_detail(search_row, detail_row):
     return merged
 
 
+def _build_search_only_fallback_row(search_row, listing_id, listing_url, failure):
+    merged = _merge_search_and_detail(
+        search_row,
+        {
+            "listing_id": listing_id,
+            "listing_url": listing_url,
+        },
+    )
+    merged["detail_extraction_failed"] = True
+    merged["detail_fallback_mode"] = "search_only"
+    merged["detail_failure_type"] = failure.get("failure_type")
+    merged["detail_failure_error"] = failure.get("error")
+    merged["detail_failure_http_status"] = failure.get("http_status")
+    merged["detail_failure_browser_error_code"] = failure.get("browser_error_code")
+    merged["detail_failure_page_title"] = failure.get("page_title")
+    merged["detail_failure_current_url"] = failure.get("current_url")
+    return merged
+
+
 def _row_for_csv(item):
     return {
         "listing_id": item.get("listing_id"),
@@ -1185,6 +1204,14 @@ def _row_for_csv(item):
         "detail_latitude": item.get("detail_latitude"),
         "detail_longitude": item.get("detail_longitude"),
         "coordinate_source": item.get("coordinate_source"),
+        "detail_extraction_failed": item.get("detail_extraction_failed"),
+        "detail_fallback_mode": item.get("detail_fallback_mode"),
+        "detail_failure_type": item.get("detail_failure_type"),
+        "detail_failure_error": item.get("detail_failure_error"),
+        "detail_failure_http_status": item.get("detail_failure_http_status"),
+        "detail_failure_browser_error_code": item.get("detail_failure_browser_error_code"),
+        "detail_failure_page_title": item.get("detail_failure_page_title"),
+        "detail_failure_current_url": item.get("detail_failure_current_url"),
         "added_text": item.get("added_text"),
         "description": item.get("description"),
         "key_features_text": item.get("key_features_text"),
@@ -1192,6 +1219,25 @@ def _row_for_csv(item):
         "floorplan_urls": json.dumps(item.get("floorplan_urls", []), ensure_ascii=False),
         "epc_urls": json.dumps(item.get("epc_urls", []), ensure_ascii=False),
     }
+
+
+def _csv_fieldnames(enriched_results):
+    if not enriched_results:
+        return []
+
+    fieldnames = list(_row_for_csv(enriched_results[0]).keys())
+    seen = set(fieldnames)
+    for item in enriched_results[1:]:
+        for key in _row_for_csv(item).keys():
+            if key in seen:
+                continue
+            fieldnames.append(key)
+            seen.add(key)
+    return fieldnames
+
+
+def _count_search_only_fallbacks(enriched_results):
+    return sum(1 for item in enriched_results if item.get("detail_fallback_mode") == "search_only")
 
 
 def save_outputs(output_dir, enriched_results, raw_path, metadata):
@@ -1209,7 +1255,7 @@ def save_outputs(output_dir, enriched_results, raw_path, metadata):
         json.dump(dataset, handle, indent=2, ensure_ascii=False)
 
     csv_path = output_path / f"rightmove_rental_enriched_results_{timestamp}.csv"
-    fieldnames = list(_row_for_csv(enriched_results[0]).keys()) if enriched_results else []
+    fieldnames = _csv_fieldnames(enriched_results)
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -1367,6 +1413,7 @@ def main():
                     "failed_by_type": failed_by_type,
                     "failed_http_status_counts": failed_http_status_counts,
                     "failed_browser_error_counts": failed_browser_error_counts,
+                    "search_only_fallback_count": _count_search_only_fallbacks(enriched_results),
                     "resume_enabled": bool(args.resume),
                     "block_images": bool(args.block_images),
                     "interactive": bool(args.interactive),
@@ -1378,7 +1425,44 @@ def main():
                 }
                 _write_progress(run_dir, enriched_results, completed_listing_ids, progress_metadata)
                 if args.continue_on_listing_error:
-                    print(f"  skipping failed listing after retries: {failure['error']}")
+                    fallback_row = _build_search_only_fallback_row(
+                        row,
+                        listing_id,
+                        listing_url,
+                        failure,
+                    )
+                    enriched_results.append(fallback_row)
+                    if listing_key:
+                        completed_listing_ids.add(listing_key)
+                    failed_by_type, failed_http_status_counts, failed_browser_error_counts = _failure_summary(
+                        failed_listings
+                    )
+                    progress_metadata = {
+                        "generated_at": datetime.now().isoformat(),
+                        "source_search_json": str(search_json),
+                        "run_dir": str(run_dir),
+                        "slice_start_index": slice_meta["start_index"],
+                        "slice_end_index": slice_meta["end_index"],
+                        "source_total_results": slice_meta["total_results"],
+                        "results_count": len(enriched_results),
+                        "completed_count": len(completed_listing_ids),
+                        "failed_count": len(failed_listings),
+                        "failed_listings": failed_listings,
+                        "failed_by_type": failed_by_type,
+                        "failed_http_status_counts": failed_http_status_counts,
+                        "failed_browser_error_counts": failed_browser_error_counts,
+                        "search_only_fallback_count": _count_search_only_fallbacks(enriched_results),
+                        "resume_enabled": bool(args.resume),
+                        "block_images": bool(args.block_images),
+                        "interactive": bool(args.interactive),
+                        "headless": bool(args.headless),
+                        "user_data_dir": args.user_data_dir,
+                        "page_timeout": args.page_timeout,
+                        "settle_seconds": args.wait_seconds,
+                        "listing_retries": args.listing_retries,
+                    }
+                    _write_progress(run_dir, enriched_results, completed_listing_ids, progress_metadata)
+                    print(f"  using search-only fallback after retries: {failure['error']}")
                     continue
                 raise last_error if last_error else RuntimeError(f"Failed to load listing: {listing_url}")
             enriched_results.append(merged)
@@ -1400,6 +1484,7 @@ def main():
                 "failed_by_type": failed_by_type,
                 "failed_http_status_counts": failed_http_status_counts,
                 "failed_browser_error_counts": failed_browser_error_counts,
+                "search_only_fallback_count": _count_search_only_fallbacks(enriched_results),
                 "resume_enabled": bool(args.resume),
                 "block_images": bool(args.block_images),
                 "interactive": bool(args.interactive),
@@ -1432,6 +1517,7 @@ def main():
             "failed_by_type": failed_by_type,
             "failed_http_status_counts": failed_http_status_counts,
             "failed_browser_error_counts": failed_browser_error_counts,
+            "search_only_fallback_count": _count_search_only_fallbacks(enriched_results),
             "block_images": bool(args.block_images),
             "interactive": bool(args.interactive),
             "headless": bool(args.headless),
