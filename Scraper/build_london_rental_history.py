@@ -627,6 +627,15 @@ def _dashboard_payload(history):
             "category_row_count": len(latest_category_stats),
         },
         "filters": {
+            "runs": [
+                {
+                    "run_timestamp": row["run_timestamp"],
+                    "run_date": row["run_date"],
+                    "label": row["run_timestamp"],
+                    "snapshot_file": f"rightmove_london_listings_{row['run_timestamp']}.json",
+                }
+                for row in runs
+            ],
             "boroughs": sorted(
                 {row["london_borough"] for row in borough_stats if row["london_borough"] != "Unknown"}
             ),
@@ -727,7 +736,7 @@ def main():
     pages_data_dir = _resolve_path(args.pages_data_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     pages_data_dir.mkdir(parents=True, exist_ok=True)
-    snapshot_dir = output_dir / "snapshots"
+    snapshot_dir = pages_data_dir / "snapshots"
     snapshot_dir.mkdir(parents=True, exist_ok=True)
 
     run_files = _find_run_files(input_dir)
@@ -762,7 +771,7 @@ def main():
     category_csv = output_dir / "rightmove_london_category_stats.csv"
     borough_category_csv = output_dir / "rightmove_london_borough_category_stats.csv"
     dashboard_json = pages_data_dir / "dashboard.json"
-    listings_json = pages_data_dir / "listings.json"
+    legacy_listings_json = pages_data_dir / "listings.json"
 
     if not run_files and not snapshot_records:
         raise FileNotFoundError("No London-clipped cleaned run files or listing snapshots were found.")
@@ -775,7 +784,8 @@ def main():
         _write_csv(category_csv, history["category_stats"])
         _write_csv(borough_category_csv, history["borough_category_stats"])
         _write_json(dashboard_json, _dashboard_payload(history))
-        _write_json(listings_json, _empty_listings_payload(), indent=None)
+        if legacy_listings_json.exists():
+            legacy_listings_json.unlink()
 
         print("\nSaved London history outputs:")
         print(f"  JSON: {json_path}")
@@ -784,14 +794,13 @@ def main():
         print(f"  Category CSV: {category_csv}")
         print(f"  Borough+category CSV: {borough_category_csv}")
         print(f"  Pages JSON: {dashboard_json}")
-        print(f"  Pages listings JSON: {listings_json}")
+        print(f"  Pages snapshots dir: {snapshot_dir}")
         print(f"  Runs: {history['meta']['run_count']}")
         print("  Listing rows: 0")
         return
 
     df = pd.DataFrame(all_rows)
     history = _history_payload(df, snapshot_records)
-    latest_snapshot = snapshot_records[-1]["payload"]
 
     _write_json(json_path, history)
     _write_csv(runs_csv, history["runs"])
@@ -799,7 +808,8 @@ def main():
     _write_csv(category_csv, history["category_stats"])
     _write_csv(borough_category_csv, history["borough_category_stats"])
     _write_json(dashboard_json, _dashboard_payload(history))
-    _write_json(listings_json, latest_snapshot, indent=None)
+    if legacy_listings_json.exists():
+        legacy_listings_json.unlink()
 
     print("\nSaved London history outputs:")
     print(f"  JSON: {json_path}")
@@ -808,7 +818,6 @@ def main():
     print(f"  Category CSV: {category_csv}")
     print(f"  Borough+category CSV: {borough_category_csv}")
     print(f"  Pages JSON: {dashboard_json}")
-    print(f"  Pages listings JSON: {listings_json}")
     print(f"  Snapshot dir: {snapshot_dir}")
     print(f"  Runs: {history['meta']['run_count']}")
     print(f"  Listing rows: {history['meta']['listing_rows']}")

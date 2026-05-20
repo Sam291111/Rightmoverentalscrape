@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated_at": "2026-05-20T17:44:50.594996",
+    "generated_at": "2026-05-20T17:51:49.579507",
     "source_run_files": [
       "rightmove_cleaned_dataset_20260520_153000_london_clipped_20260520_153034.json"
     ],
@@ -49,6 +49,14 @@
     "category_row_count": 79
   },
   "filters": {
+    "runs": [
+      {
+        "run_timestamp": "20260520_153034",
+        "run_date": "20260520",
+        "label": "20260520_153034",
+        "snapshot_file": "rightmove_london_listings_20260520_153034.json"
+      }
+    ],
     "boroughs": [
       "Barking and Dagenham",
       "Barnet",

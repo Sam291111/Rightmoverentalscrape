@@ -26,6 +26,8 @@ const DATASET_DIMENSIONS = {
 const state = {
   dashboard: null,
   listings: null,
+  datasetCache: new Map(),
+  activeDatasetRun: null,
   charts: {},
 };
 
@@ -38,20 +40,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     state.dashboard = await dashboardResponse.json();
-    const listingsResponse = await fetch("./data/listings.json", { cache: "no-store" });
-    if (listingsResponse.ok) {
-      state.listings = await listingsResponse.json();
-    } else if (listingsResponse.status !== 404) {
-      throw new Error(`Failed to load listing data (${listingsResponse.status})`);
-    }
-
     initialiseTabs();
+    await initialiseDatasetState();
     initialiseControls();
     renderAll();
   } catch (error) {
     renderError(error);
   }
 });
+
+async function initialiseDatasetState() {
+  const runs = state.dashboard?.filters?.runs || [];
+  if (!runs.length) {
+    state.listings = null;
+    state.activeDatasetRun = null;
+    return;
+  }
+  const latestRunTimestamp = state.dashboard.meta.latest_run_timestamp || runs[runs.length - 1]?.run_timestamp;
+  if (latestRunTimestamp) {
+    await loadDatasetForRun(latestRunTimestamp);
+  }
+}
 
 function initialiseTabs() {
   const buttons = [...document.querySelectorAll(".tab-button")];
@@ -124,27 +133,21 @@ function initialiseControls() {
   document.querySelector("#segment-scale-select").addEventListener("change", renderSegmentExplorer);
   document.querySelector("#segment-metric-select").addEventListener("change", renderSegmentExplorer);
 
-  if (state.listings) {
+  const datasetRunOptions = (state.dashboard.filters.runs || [])
+    .slice()
+    .reverse()
+    .map((run) => ({ value: run.run_timestamp, label: formatRunLabel(run.run_timestamp) }));
+
+  if (datasetRunOptions.length) {
     fillSelect(
       document.querySelector("#dataset-run-select"),
-      [{ value: "__all__", label: "All runs" }].concat(
-        state.listings.filters.runs
-          .slice()
-          .reverse()
-          .map((run) => ({ value: run.run_timestamp, label: formatRunLabel(run.run_timestamp) })),
-      ),
-      "__all__",
+      datasetRunOptions,
+      state.activeDatasetRun || datasetRunOptions[0].value,
     );
-    fillSelect(
-      document.querySelector("#dataset-borough-select"),
-      [{ value: "__all__", label: "All boroughs" }].concat(
-        state.listings.filters.boroughs.map((borough) => ({ value: borough, label: borough })),
-      ),
-      "__all__",
-    );
+    refreshDatasetFilters();
 
     document.querySelector("#dataset-dimension-select").addEventListener("change", syncDatasetValuesAndRender);
-    document.querySelector("#dataset-run-select").addEventListener("change", renderDatasetTable);
+    document.querySelector("#dataset-run-select").addEventListener("change", handleDatasetRunChange);
     document.querySelector("#dataset-borough-select").addEventListener("change", renderDatasetTable);
     document.querySelector("#dataset-value-select").addEventListener("change", renderDatasetTable);
     document.querySelector("#dataset-limit-select").addEventListener("change", renderDatasetTable);
@@ -163,7 +166,7 @@ function initialiseControls() {
   }
 
   syncSegmentValuesAndRender();
-  if (state.listings) {
+  if (datasetRunOptions.length) {
     syncDatasetValuesAndRender();
   }
 }
@@ -206,6 +209,63 @@ function syncDatasetValuesAndRender() {
     preferredValue,
   );
   renderDatasetTable();
+}
+
+function refreshDatasetFilters() {
+  if (!state.listings) {
+    return;
+  }
+  fillSelect(
+    document.querySelector("#dataset-borough-select"),
+    [{ value: "__all__", label: "All boroughs" }].concat(
+      state.listings.filters.boroughs.map((borough) => ({ value: borough, label: borough })),
+    ),
+    "__all__",
+  );
+}
+
+async function handleDatasetRunChange() {
+  const runTimestamp = document.querySelector("#dataset-run-select").value;
+  renderDatasetLoading(runTimestamp);
+  try {
+    await loadDatasetForRun(runTimestamp);
+    refreshDatasetFilters();
+    syncDatasetValuesAndRender();
+  } catch (error) {
+    renderDatasetLoadError(error, runTimestamp);
+  }
+}
+
+function getRunMeta(runTimestamp) {
+  return (state.dashboard?.filters?.runs || []).find((run) => run.run_timestamp === runTimestamp) || null;
+}
+
+async function loadDatasetForRun(runTimestamp) {
+  if (!runTimestamp) {
+    state.listings = null;
+    state.activeDatasetRun = null;
+    return null;
+  }
+  if (state.datasetCache.has(runTimestamp)) {
+    state.listings = state.datasetCache.get(runTimestamp);
+    state.activeDatasetRun = runTimestamp;
+    return state.listings;
+  }
+
+  const runMeta = getRunMeta(runTimestamp);
+  if (!runMeta?.snapshot_file) {
+    throw new Error(`No snapshot file was published for run ${runTimestamp}`);
+  }
+
+  const response = await fetch(`./data/snapshots/${runMeta.snapshot_file}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Failed to load snapshot for ${runTimestamp} (${response.status})`);
+  }
+  const payload = await response.json();
+  state.datasetCache.set(runTimestamp, payload);
+  state.listings = payload;
+  state.activeDatasetRun = runTimestamp;
+  return payload;
 }
 
 function pickDefaultValue(dimension, values, fallback = null) {
@@ -442,16 +502,12 @@ function getFilteredDatasetRows() {
   if (!state.listings) {
     return [];
   }
-  const runValue = document.querySelector("#dataset-run-select").value;
   const boroughValue = document.querySelector("#dataset-borough-select").value;
   const dimension = document.querySelector("#dataset-dimension-select").value;
   const selectedValue = document.querySelector("#dataset-value-select").value;
   const dimensionField = DATASET_DIMENSIONS[dimension].field;
 
   return state.listings.rows.filter((row) => {
-    if (runValue !== "__all__" && row.run_timestamp !== runValue) {
-      return false;
-    }
     if (boroughValue !== "__all__" && row.london_borough !== boroughValue) {
       return false;
     }
@@ -465,12 +521,12 @@ function getFilteredDatasetRows() {
 function renderDatasetTable() {
   if (!state.listings) {
     document.querySelector("#dataset-summary").innerHTML = [
-      makePill("Listing-level data will appear after the first full production run."),
-      makePill("The analytics tab is already live."),
+      makePill("Listing-level snapshot data will appear after the first production run."),
+      makePill("Use the run selector to browse historical snapshots once they exist."),
     ].join("");
     document.querySelector("#dataset-table-body").innerHTML = `
       <tr>
-        <td colspan="9">No listing-level dataset has been published yet.</td>
+        <td colspan="9">No listing-level snapshot has been published yet.</td>
       </tr>
     `;
     return;
@@ -486,9 +542,10 @@ function renderDatasetTable() {
   const boroughValue = document.querySelector("#dataset-borough-select").value;
   const dimension = document.querySelector("#dataset-dimension-select").value;
   const selectedValue = document.querySelector("#dataset-value-select").value;
+  const snapshotMeta = state.listings.meta || {};
 
   document.querySelector("#dataset-summary").innerHTML = [
-    makePill(`Run: ${runValue === "__all__" ? "All runs" : formatRunLabel(runValue)}`),
+    makePill(`Run: ${formatRunLabel(snapshotMeta.run_timestamp || runValue)}`),
     makePill(`Borough: ${boroughValue === "__all__" ? "All boroughs" : boroughValue}`),
     makePill(`Filter: ${DATASET_DIMENSIONS[dimension].label}`),
     makePill(`Value: ${selectedValue === "__all__" ? "All values" : selectedValue}`),
@@ -515,6 +572,22 @@ function renderDatasetTable() {
     .join("");
 }
 
+function renderDatasetLoading(runTimestamp) {
+  document.querySelector("#dataset-summary").innerHTML = [
+    makePill(`Loading run: ${formatRunLabel(runTimestamp)}`),
+    makePill("Fetching snapshot data"),
+  ].join("");
+  renderEmptyTable("#dataset-table-body", 9, "Loading snapshot data...");
+}
+
+function renderDatasetLoadError(error, runTimestamp) {
+  document.querySelector("#dataset-summary").innerHTML = [
+    makePill(`Run: ${formatRunLabel(runTimestamp)}`),
+    makePill("Snapshot load failed"),
+  ].join("");
+  renderEmptyTable("#dataset-table-body", 9, error.message || "Failed to load snapshot data.");
+}
+
 function buildTagSummary(row) {
   const tags = [];
   for (const field of [
@@ -539,6 +612,7 @@ function downloadDatasetCsv() {
   }
   const rows = getFilteredDatasetRows();
   const headers = [
+    "listing_id",
     "run_timestamp",
     "run_date",
     "london_borough",
@@ -563,6 +637,9 @@ function downloadDatasetCsv() {
     "bills_category",
     "luxury_category",
     "investment_opportunity_category",
+    "epc_rating",
+    "latitude",
+    "longitude",
     "listing_url",
   ];
   const lines = [headers.join(",")];
