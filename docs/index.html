@@ -14,7 +14,19 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap"
       rel="stylesheet"
     />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
     <link rel="stylesheet" href="./styles.css" />
+    <script
+      src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+      defer
+    ></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
     <script src="./app.js" defer></script>
   </head>
@@ -74,6 +86,60 @@
           <section class="panel">
             <div class="panel-header">
               <div>
+                <p class="panel-kicker">Change Monitor</p>
+                <h2>What changed since the previous run</h2>
+              </div>
+              <label class="control">
+                <span>Borough delta metric</span>
+                <select id="change-metric-select"></select>
+              </label>
+            </div>
+            <div class="summary-grid comparison-grid">
+              <article class="summary-card">
+                <span class="summary-label">Listings delta</span>
+                <strong class="summary-value" id="change-listing-delta">-</strong>
+              </article>
+              <article class="summary-card">
+                <span class="summary-label">Median price delta</span>
+                <strong class="summary-value" id="change-median-price-delta">-</strong>
+              </article>
+              <article class="summary-card">
+                <span class="summary-label">New listings</span>
+                <strong class="summary-value" id="change-added-listings">-</strong>
+              </article>
+              <article class="summary-card">
+                <span class="summary-label">Removed listings</span>
+                <strong class="summary-value" id="change-removed-listings">-</strong>
+              </article>
+              <article class="summary-card">
+                <span class="summary-label">Price changes</span>
+                <strong class="summary-value" id="change-price-changed-listings">-</strong>
+              </article>
+            </div>
+            <div class="segment-summary" id="change-summary"></div>
+            <div class="borough-layout">
+              <div class="chart-wrap borough-chart-wrap">
+                <canvas id="change-borough-chart" aria-label="Borough change chart"></canvas>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Borough</th>
+                      <th id="change-table-metric-label">Delta</th>
+                      <th>Latest</th>
+                      <th>Previous</th>
+                    </tr>
+                  </thead>
+                  <tbody id="change-borough-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
                 <p class="panel-kicker">Trend Line</p>
                 <h2>London-wide trend across runs</h2>
               </div>
@@ -116,8 +182,10 @@
                 <table>
                   <thead>
                     <tr>
+                      <th>Rank</th>
                       <th>Borough</th>
                       <th id="borough-table-metric-label">Metric</th>
+                      <th>Vs previous</th>
                       <th>Listings</th>
                     </tr>
                   </thead>
@@ -236,6 +304,10 @@
               </label>
             </div>
             <div class="dataset-summary" id="dataset-summary"></div>
+            <div class="dataset-map-summary" id="dataset-map-summary"></div>
+            <div class="map-wrap">
+              <div id="dataset-map" aria-label="Listing map"></div>
+            </div>
             <div class="table-wrap dataset-table-wrap">
               <table>
                 <thead>

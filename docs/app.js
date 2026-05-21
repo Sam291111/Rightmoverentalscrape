@@ -28,7 +28,11 @@ const state = {
   listings: null,
   datasetCache: new Map(),
   activeDatasetRun: null,
+  comparison: null,
   charts: {},
+  map: null,
+  mapLayer: null,
+  mapRenderer: null,
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -42,6 +46,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     state.dashboard = await dashboardResponse.json();
     initialiseTabs();
     await initialiseDatasetState();
+    await initialiseComparisonState();
     initialiseControls();
     renderAll();
   } catch (error) {
@@ -60,6 +65,19 @@ async function initialiseDatasetState() {
   if (latestRunTimestamp) {
     await loadDatasetForRun(latestRunTimestamp);
   }
+}
+
+async function initialiseComparisonState() {
+  const runs = state.dashboard?.filters?.runs || [];
+  if (runs.length < 2) {
+    state.comparison = null;
+    return;
+  }
+  const latestRun = runs[runs.length - 1];
+  const previousRun = runs[runs.length - 2];
+  const latestSnapshot = await getDatasetForRun(latestRun.run_timestamp);
+  const previousSnapshot = await getDatasetForRun(previousRun.run_timestamp);
+  state.comparison = buildComparisonState(latestRun, previousRun, latestSnapshot, previousSnapshot);
 }
 
 function initialiseTabs() {
@@ -89,6 +107,15 @@ function initialiseControls() {
       { value: "listing_count", label: METRICS.listing_count.label },
       { value: "median_price", label: METRICS.median_price.label },
       { value: "mean_price", label: METRICS.mean_price.label },
+    ],
+    "listing_count",
+  );
+  fillSelect(
+    document.querySelector("#change-metric-select"),
+    [
+      { value: "listing_count", label: "Listing count delta" },
+      { value: "median_price", label: "Median price delta" },
+      { value: "mean_price", label: "Mean price delta" },
     ],
     "listing_count",
   );
@@ -127,6 +154,7 @@ function initialiseControls() {
   document.querySelector("#segment-dimension-select").addEventListener("change", syncSegmentValuesAndRender);
   document.querySelector("#run-metric-select").addEventListener("change", renderRunTrend);
   document.querySelector("#borough-metric-select").addEventListener("change", renderLatestBoroughs);
+  document.querySelector("#change-metric-select").addEventListener("change", renderChangeMonitor);
   document.querySelector("#borough-limit-select").addEventListener("change", renderLatestBoroughs);
   document.querySelector("#segment-borough-select").addEventListener("change", renderSegmentExplorer);
   document.querySelector("#segment-value-select").addEventListener("change", renderSegmentExplorer);
@@ -245,15 +273,18 @@ function getRunMeta(runTimestamp) {
 }
 
 async function loadDatasetForRun(runTimestamp) {
+  const payload = await getDatasetForRun(runTimestamp);
+  state.listings = payload;
+  state.activeDatasetRun = runTimestamp;
+  return payload;
+}
+
+async function getDatasetForRun(runTimestamp) {
   if (!runTimestamp) {
-    state.listings = null;
-    state.activeDatasetRun = null;
     return null;
   }
   if (state.datasetCache.has(runTimestamp)) {
-    state.listings = state.datasetCache.get(runTimestamp);
-    state.activeDatasetRun = runTimestamp;
-    return state.listings;
+    return state.datasetCache.get(runTimestamp);
   }
 
   const runMeta = getRunMeta(runTimestamp);
@@ -267,8 +298,6 @@ async function loadDatasetForRun(runTimestamp) {
   }
   const payload = await response.json();
   state.datasetCache.set(runTimestamp, payload);
-  state.listings = payload;
-  state.activeDatasetRun = runTimestamp;
   return payload;
 }
 
@@ -293,6 +322,7 @@ function pickDefaultValue(dimension, values, fallback = null) {
 function renderAll() {
   renderSummary();
   renderRunTrend();
+  renderChangeMonitor();
   renderLatestBoroughs();
   renderSegmentExplorer();
   renderDatasetTable();
@@ -311,6 +341,106 @@ function renderSummary() {
     latestRun?.listing_count,
   );
   document.querySelector("#latest-median-deposit").textContent = formatCurrency(latestRun?.median_deposit);
+}
+
+function renderChangeMonitor() {
+  const metric = document.querySelector("#change-metric-select").value;
+  document.querySelector("#change-table-metric-label").textContent =
+    metric === "listing_count" ? "Listings delta" : `${METRICS[metric].label} delta`;
+
+  if (!state.comparison) {
+    document.querySelector("#change-summary").innerHTML = [
+      makePill("A second run will unlock change tracking."),
+    ].join("");
+    document.querySelector("#change-listing-delta").textContent = "N/A";
+    document.querySelector("#change-median-price-delta").textContent = "N/A";
+    document.querySelector("#change-added-listings").textContent = "N/A";
+    document.querySelector("#change-removed-listings").textContent = "N/A";
+    document.querySelector("#change-price-changed-listings").textContent = "N/A";
+    renderEmptyTable("#change-borough-body", 4, "Need at least two runs to compare changes.");
+    return renderEmptyChartMessage("change", "#change-borough-chart", "Change tracking appears after the second run.");
+  }
+
+  const comparison = state.comparison;
+  document.querySelector("#change-listing-delta").innerHTML = formatSignedDelta(comparison.runDelta.listing_count, formatNumber);
+  document.querySelector("#change-median-price-delta").innerHTML = formatSignedDelta(comparison.runDelta.median_price, formatCurrency);
+  document.querySelector("#change-added-listings").textContent = formatNumber(comparison.addedListings, 0);
+  document.querySelector("#change-removed-listings").textContent = formatNumber(comparison.removedListings, 0);
+  document.querySelector("#change-price-changed-listings").textContent = formatNumber(comparison.priceChangedListings, 0);
+
+  document.querySelector("#change-summary").innerHTML = [
+    makePill(`Latest: ${formatRunLabel(comparison.latestRun.run_timestamp)}`),
+    makePill(`Previous: ${formatRunLabel(comparison.previousRun.run_timestamp)}`),
+    makePill(`Persistent listings: ${formatNumber(comparison.persistentListings, 0)}`),
+  ].join("");
+
+  const deltaRows = comparison.boroughDeltas
+    .slice()
+    .sort((left, right) => Math.abs(right[`${metric}_delta`] ?? 0) - Math.abs(left[`${metric}_delta`] ?? 0))
+    .slice(0, 10);
+
+  if (!deltaRows.length) {
+    renderEmptyTable("#change-borough-body", 4, "No borough deltas were available.");
+    return renderEmptyChartMessage("change", "#change-borough-chart", "No borough deltas available.");
+  }
+
+  state.charts.change = renderChart(state.charts.change, "#change-borough-chart", {
+    type: "bar",
+    data: {
+      labels: deltaRows.map((row) => row.london_borough),
+      datasets: [
+        {
+          label: metric === "listing_count" ? "Listings delta" : `${METRICS[metric].label} delta`,
+          data: deltaRows.map((row) => row[`${metric}_delta`]),
+          backgroundColor: deltaRows.map((row) =>
+            (row[`${metric}_delta`] ?? 0) >= 0 ? "rgba(37, 95, 90, 0.82)" : "rgba(184, 79, 45, 0.82)",
+          ),
+          borderRadius: 8,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: "y",
+      scales: {
+        x: {
+          ticks: {
+            callback: (value) => (metric === "listing_count" ? formatNumber(value, 0) : formatCurrency(value)),
+            color: "#665d52",
+          },
+          grid: { color: "rgba(78, 55, 27, 0.1)" },
+        },
+        y: {
+          ticks: { color: "#665d52" },
+          grid: { display: false },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label(context) {
+              return metric === "listing_count"
+                ? formatSignedPlain(context.raw, formatNumber)
+                : formatSignedPlain(context.raw, formatCurrency);
+            },
+          },
+        },
+      },
+    },
+  });
+
+  document.querySelector("#change-borough-body").innerHTML = deltaRows
+    .map((row) => `
+      <tr>
+        <td>${escapeHtml(row.london_borough)}</td>
+        <td>${metric === "listing_count" ? formatSignedDelta(row.listing_count_delta, formatNumber) : formatSignedDelta(row[`${metric}_delta`], formatCurrency)}</td>
+        <td>${metric === "listing_count" ? formatNumber(row.latest_listing_count, 0) : METRICS[metric].format(row[`latest_${metric}`])}</td>
+        <td>${metric === "listing_count" ? formatNumber(row.previous_listing_count, 0) : METRICS[metric].format(row[`previous_${metric}`])}</td>
+      </tr>
+    `)
+    .join("");
 }
 
 function renderRunTrend() {
@@ -344,6 +474,14 @@ function renderRunTrend() {
 function renderLatestBoroughs() {
   const metric = document.querySelector("#borough-metric-select").value;
   const limit = Number(document.querySelector("#borough-limit-select").value);
+  const previousRunTimestamp = state.dashboard.series.runs.length > 1
+    ? state.dashboard.series.runs[state.dashboard.series.runs.length - 2].run_timestamp
+    : null;
+  const previousRows = new Map(
+    state.dashboard.series.borough_stats
+      .filter((row) => row.run_timestamp === previousRunTimestamp)
+      .map((row) => [row.london_borough, row]),
+  );
   const rows = [...state.dashboard.latest.borough_stats]
     .filter((row) => row.london_borough && row.london_borough !== "Unknown")
     .sort((left, right) => (right[metric] ?? -Infinity) - (left[metric] ?? -Infinity))
@@ -351,7 +489,7 @@ function renderLatestBoroughs() {
 
   document.querySelector("#borough-table-metric-label").textContent = METRICS[metric].label;
   if (!rows.length) {
-    renderEmptyTable("#borough-table-body", 3, "No borough data has been published yet.");
+    renderEmptyTable("#borough-table-body", 5, "No borough data has been published yet.");
     return renderEmptyChartMessage("borough", "#borough-chart", "No borough snapshot yet.");
   }
 
@@ -404,15 +542,19 @@ function renderLatestBoroughs() {
   });
 
   document.querySelector("#borough-table-body").innerHTML = rows
-    .map(
-      (row) => `
+    .map((row, index) => {
+      const previous = previousRows.get(row.london_borough);
+      const delta = previous ? (row[metric] ?? 0) - (previous[metric] ?? 0) : null;
+      return `
         <tr>
+          <td>${index + 1}</td>
           <td>${escapeHtml(row.london_borough)}</td>
           <td>${METRICS[metric].format(row[metric])}</td>
+          <td>${delta === null ? "New" : metric === "listing_count" ? formatSignedDelta(delta, formatNumber) : formatSignedDelta(delta, METRICS[metric].format)}</td>
           <td>${formatNumber(row.listing_count, 0)}</td>
         </tr>
-      `,
-    )
+      `;
+    })
     .join("");
 }
 
@@ -589,6 +731,8 @@ function renderDatasetTable() {
       `,
     )
     .join("");
+
+  renderDatasetMap(sortedRows);
 }
 
 function renderDatasetLoading(runTimestamp) {
@@ -605,6 +749,70 @@ function renderDatasetLoadError(error, runTimestamp) {
     makePill("Snapshot load failed"),
   ].join("");
   renderEmptyTable("#dataset-table-body", 9, error.message || "Failed to load snapshot data.");
+  document.querySelector("#dataset-map-summary").innerHTML = [
+    makePill("Map unavailable for this run"),
+  ].join("");
+}
+
+function renderDatasetMap(rows) {
+  const summary = document.querySelector("#dataset-map-summary");
+  const container = document.querySelector("#dataset-map");
+  if (!container || !window.L) {
+    summary.innerHTML = [makePill("Map library unavailable")].join("");
+    return;
+  }
+
+  const geocodedRows = rows.filter((row) => Number.isFinite(Number(row.latitude)) && Number.isFinite(Number(row.longitude)));
+  if (!geocodedRows.length) {
+    summary.innerHTML = [
+      makePill("No coordinates available for the current filter"),
+    ].join("");
+    if (state.mapLayer) {
+      state.mapLayer.clearLayers();
+    }
+    return;
+  }
+
+  const markerRows = geocodedRows.slice(0, 1500);
+  summary.innerHTML = [
+    makePill(`Mapped listings: ${formatNumber(markerRows.length, 0)} of ${formatNumber(geocodedRows.length, 0)} geocoded rows`),
+    makePill("Markers are capped at 1,500 for speed"),
+  ].join("");
+
+  if (!state.map) {
+    state.map = L.map(container, { zoomControl: true, scrollWheelZoom: false });
+    state.mapRenderer = L.canvas({ padding: 0.5 });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors",
+      maxZoom: 19,
+    }).addTo(state.map);
+    state.mapLayer = L.layerGroup().addTo(state.map);
+  } else if (!state.mapLayer) {
+    state.mapLayer = L.layerGroup().addTo(state.map);
+  } else {
+    state.mapLayer.clearLayers();
+  }
+
+  const bounds = [];
+  for (const row of markerRows) {
+    const lat = Number(row.latitude);
+    const lng = Number(row.longitude);
+    bounds.push([lat, lng]);
+    L.circleMarker([lat, lng], {
+      renderer: state.mapRenderer,
+      radius: 4,
+      weight: 1,
+      opacity: 0.85,
+      fillOpacity: 0.45,
+      color: markerColorForRow(row),
+    })
+      .bindPopup(buildMapPopup(row))
+      .addTo(state.mapLayer);
+  }
+
+  if (bounds.length) {
+    state.map.fitBounds(bounds, { padding: [24, 24] });
+  }
 }
 
 function buildTagSummary(row) {
@@ -965,5 +1173,142 @@ function renderError(error) {
         <p>${escapeHtml(error.message)}</p>
       </section>
     </main>
+  `;
+}
+
+function buildComparisonState(latestRun, previousRun, latestSnapshot, previousSnapshot) {
+  const latestRows = latestSnapshot?.rows || [];
+  const previousRows = previousSnapshot?.rows || [];
+  const latestSummary = state.dashboard.series.runs.find((row) => row.run_timestamp === latestRun.run_timestamp) || null;
+  const previousSummary = state.dashboard.series.runs.find((row) => row.run_timestamp === previousRun.run_timestamp) || null;
+
+  const latestById = new Map(latestRows.map((row) => [row.listing_id, row]));
+  const previousById = new Map(previousRows.map((row) => [row.listing_id, row]));
+
+  let addedListings = 0;
+  let removedListings = 0;
+  let persistentListings = 0;
+  let priceChangedListings = 0;
+
+  for (const [listingId, row] of latestById.entries()) {
+    const previous = previousById.get(listingId);
+    if (!previous) {
+      addedListings += 1;
+      continue;
+    }
+    persistentListings += 1;
+    if (Number(row.price_amount) !== Number(previous.price_amount)) {
+      priceChangedListings += 1;
+    }
+  }
+  for (const listingId of previousById.keys()) {
+    if (!latestById.has(listingId)) {
+      removedListings += 1;
+    }
+  }
+
+  const latestBoroughRows = state.dashboard.latest.borough_stats || [];
+  const previousBoroughRows = state.dashboard.series.borough_stats.filter(
+    (row) => row.run_timestamp === previousRun.run_timestamp,
+  );
+  const previousBoroughMap = new Map(previousBoroughRows.map((row) => [row.london_borough, row]));
+  const boroughNames = uniqueOrdered([
+    ...latestBoroughRows.map((row) => row.london_borough),
+    ...previousBoroughRows.map((row) => row.london_borough),
+  ].filter(Boolean));
+
+  const boroughDeltas = boroughNames.map((borough) => {
+    const latest = latestBoroughRows.find((row) => row.london_borough === borough) || null;
+    const previous = previousBoroughMap.get(borough) || null;
+    return {
+      london_borough: borough,
+      latest_listing_count: latest?.listing_count ?? 0,
+      previous_listing_count: previous?.listing_count ?? 0,
+      listing_count_delta: (latest?.listing_count ?? 0) - (previous?.listing_count ?? 0),
+      latest_median_price: latest?.median_price ?? null,
+      previous_median_price: previous?.median_price ?? null,
+      median_price_delta: nullableDifference(latest?.median_price, previous?.median_price),
+      latest_mean_price: latest?.mean_price ?? null,
+      previous_mean_price: previous?.mean_price ?? null,
+      mean_price_delta: nullableDifference(latest?.mean_price, previous?.mean_price),
+    };
+  });
+
+  return {
+    latestRun,
+    previousRun,
+    runDelta: {
+      listing_count: (latestSummary?.listing_count ?? 0) - (previousSummary?.listing_count ?? 0),
+      median_price: nullableDifference(latestSummary?.median_price, previousSummary?.median_price),
+      mean_price: nullableDifference(latestSummary?.mean_price, previousSummary?.mean_price),
+    },
+    addedListings,
+    removedListings,
+    persistentListings,
+    priceChangedListings,
+    boroughDeltas,
+  };
+}
+
+function nullableDifference(left, right) {
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  if (!Number.isFinite(leftNumber) || !Number.isFinite(rightNumber)) {
+    return null;
+  }
+  return leftNumber - rightNumber;
+}
+
+function formatSignedDelta(value, formatter) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "N/A";
+  }
+  const number = Number(value);
+  const formatted = formatter(Math.abs(number));
+  if (number === 0) {
+    return `<span>${formatted}</span>`;
+  }
+  const klass = number > 0 ? "delta-positive" : "delta-negative";
+  const sign = number > 0 ? "+" : "−";
+  return `<span class="${klass}">${sign}${formatted}</span>`;
+}
+
+function formatSignedPlain(value, formatter) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "N/A";
+  }
+  const number = Number(value);
+  const formatted = formatter(Math.abs(number));
+  if (number === 0) {
+    return formatted;
+  }
+  const sign = number > 0 ? "+" : "−";
+  return `${sign}${formatted}`;
+}
+
+function markerColorForRow(row) {
+  const price = Number(row.price_amount);
+  if (!Number.isFinite(price)) {
+    return "#7c4d79";
+  }
+  if (price >= 5000) {
+    return "#8c3418";
+  }
+  if (price >= 2500) {
+    return "#b84f2d";
+  }
+  if (price >= 1500) {
+    return "#8f6d1f";
+  }
+  return "#255f5a";
+}
+
+function buildMapPopup(row) {
+  return `
+    <strong>${escapeHtml(row.display_address || row.location || "Unknown listing")}</strong><br />
+    ${escapeHtml(row.london_borough || "Unknown borough")}<br />
+    ${formatCurrency(row.price_amount)} · ${escapeHtml(row.bedroom_category || "Unknown")}<br />
+    ${escapeHtml(row.property_type_category || row.property_type || "Unknown")}<br />
+    ${row.listing_url ? `<a href="${escapeAttribute(row.listing_url)}" target="_blank" rel="noreferrer">Open listing</a>` : ""}
   `;
 }
