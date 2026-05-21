@@ -773,10 +773,10 @@ function renderDatasetMap(rows) {
     return;
   }
 
-  const markerRows = geocodedRows.slice(0, 1500);
+  const markerRows = geocodedRows;
   summary.innerHTML = [
-    makePill(`Mapped listings: ${formatNumber(markerRows.length, 0)} of ${formatNumber(geocodedRows.length, 0)} geocoded rows`),
-    makePill("Markers are capped at 1,500 for speed"),
+    makePill(`Mapped listings: ${formatNumber(markerRows.length, 0)}`),
+    makePill(`Geocoded rows: ${formatNumber(geocodedRows.length, 0)}`),
   ].join("");
 
   if (!state.map) {
