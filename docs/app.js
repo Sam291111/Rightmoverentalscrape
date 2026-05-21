@@ -151,6 +151,8 @@ function initialiseControls() {
     document.querySelector("#dataset-borough-select").addEventListener("change", renderDatasetTable);
     document.querySelector("#dataset-value-select").addEventListener("change", renderDatasetTable);
     document.querySelector("#dataset-limit-select").addEventListener("change", renderDatasetTable);
+    document.querySelector("#dataset-sort-select").addEventListener("change", renderDatasetTable);
+    document.querySelector("#dataset-sort-direction-select").addEventListener("change", renderDatasetTable);
     document.querySelector("#dataset-download-button").addEventListener("click", downloadDatasetCsv);
   } else {
     for (const selector of [
@@ -159,6 +161,8 @@ function initialiseControls() {
       "#dataset-dimension-select",
       "#dataset-value-select",
       "#dataset-limit-select",
+      "#dataset-sort-select",
+      "#dataset-sort-direction-select",
       "#dataset-download-button",
     ]) {
       document.querySelector(selector).disabled = true;
@@ -298,11 +302,15 @@ function renderSummary() {
   const meta = state.dashboard.meta;
   const latestRun = state.dashboard.overview.latest_run;
   document.querySelector("#latest-run-label").textContent = formatRunLabel(meta.latest_run_timestamp);
-  document.querySelector("#generated-at-label").textContent = formatDateTime(meta.generated_at);
   document.querySelector("#runs-captured").textContent = formatNumber(meta.run_count, 0);
   document.querySelector("#latest-listings").textContent = formatNumber(latestRun?.listing_count, 0);
   document.querySelector("#latest-median-price").textContent = formatCurrency(latestRun?.median_price);
   document.querySelector("#latest-mean-price").textContent = formatCurrency(latestRun?.mean_price);
+  document.querySelector("#latest-price-reduced").textContent = formatCountWithShare(
+    latestRun?.price_reduced_count,
+    latestRun?.listing_count,
+  );
+  document.querySelector("#latest-median-deposit").textContent = formatCurrency(latestRun?.median_deposit);
 }
 
 function renderRunTrend() {
@@ -518,6 +526,16 @@ function getFilteredDatasetRows() {
   });
 }
 
+function getSortedDatasetRows(rows) {
+  const sortField = document.querySelector("#dataset-sort-select").value;
+  const direction = document.querySelector("#dataset-sort-direction-select").value;
+  const multiplier = direction === "asc" ? 1 : -1;
+
+  return rows
+    .slice()
+    .sort((left, right) => compareDatasetValues(left[sortField], right[sortField], sortField) * multiplier);
+}
+
 function renderDatasetTable() {
   if (!state.listings) {
     document.querySelector("#dataset-summary").innerHTML = [
@@ -533,15 +551,15 @@ function renderDatasetTable() {
   }
   const rows = getFilteredDatasetRows();
   const limit = Number(document.querySelector("#dataset-limit-select").value);
-  const visibleRows = rows
-    .slice()
-    .sort((left, right) => right.run_timestamp.localeCompare(left.run_timestamp))
-    .slice(0, limit);
+  const sortedRows = getSortedDatasetRows(rows);
+  const visibleRows = sortedRows.slice(0, limit);
 
   const runValue = document.querySelector("#dataset-run-select").value;
   const boroughValue = document.querySelector("#dataset-borough-select").value;
   const dimension = document.querySelector("#dataset-dimension-select").value;
   const selectedValue = document.querySelector("#dataset-value-select").value;
+  const sortField = document.querySelector("#dataset-sort-select").value;
+  const sortDirection = document.querySelector("#dataset-sort-direction-select").value;
   const snapshotMeta = state.listings.meta || {};
 
   document.querySelector("#dataset-summary").innerHTML = [
@@ -549,6 +567,7 @@ function renderDatasetTable() {
     makePill(`Borough: ${boroughValue === "__all__" ? "All boroughs" : boroughValue}`),
     makePill(`Filter: ${DATASET_DIMENSIONS[dimension].label}`),
     makePill(`Value: ${selectedValue === "__all__" ? "All values" : selectedValue}`),
+    makePill(`Sort: ${prettifySortField(sortField)} · ${sortDirection === "asc" ? "Ascending" : "Descending"}`),
     makePill(`Rows matched: ${formatNumber(rows.length, 0)}`),
     makePill(`Rows shown: ${formatNumber(Math.min(rows.length, limit), 0)}`),
   ].join("");
@@ -610,7 +629,7 @@ function downloadDatasetCsv() {
   if (!state.listings) {
     return;
   }
-  const rows = getFilteredDatasetRows();
+  const rows = getSortedDatasetRows(getFilteredDatasetRows());
   const headers = [
     "listing_id",
     "run_timestamp",
@@ -795,6 +814,18 @@ function formatNumber(value, digits = 0) {
   }).format(Number(value));
 }
 
+function formatCountWithShare(count, total) {
+  if (count === null || count === undefined || Number.isNaN(Number(count))) {
+    return "N/A";
+  }
+  const formattedCount = formatNumber(count, 0);
+  if (total === null || total === undefined || Number(total) <= 0) {
+    return formattedCount;
+  }
+  const share = (Number(count) / Number(total)) * 100;
+  return `${formattedCount} · ${share.toFixed(1)}%`;
+}
+
 function formatRunLabel(timestamp) {
   if (!timestamp) {
     return "Unknown run";
@@ -830,6 +861,71 @@ function prettifyDimension(dimension) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function prettifySortField(field) {
+  const labels = {
+    price_amount: "Price",
+    bedrooms: "Bedrooms",
+    bathrooms: "Bathrooms",
+    deposit_amount: "Deposit",
+    epc_rating: "EPC rating",
+    london_borough: "Borough",
+    display_address: "Address",
+  };
+  return labels[field] || field;
+}
+
+function compareDatasetValues(left, right, field) {
+  if (field === "epc_rating") {
+    return compareEpcRating(left, right);
+  }
+  if (["price_amount", "bedrooms", "bathrooms", "deposit_amount"].includes(field)) {
+    return compareNullableNumbers(left, right);
+  }
+  return compareNullableStrings(left, right);
+}
+
+function compareNullableNumbers(left, right) {
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  const leftValid = Number.isFinite(leftNumber);
+  const rightValid = Number.isFinite(rightNumber);
+  if (!leftValid && !rightValid) {
+    return 0;
+  }
+  if (!leftValid) {
+    return 1;
+  }
+  if (!rightValid) {
+    return -1;
+  }
+  return leftNumber - rightNumber;
+}
+
+function compareNullableStrings(left, right) {
+  const leftText = (left ?? "").toString().trim();
+  const rightText = (right ?? "").toString().trim();
+  if (!leftText && !rightText) {
+    return 0;
+  }
+  if (!leftText) {
+    return 1;
+  }
+  if (!rightText) {
+    return -1;
+  }
+  return leftText.localeCompare(rightText, "en-GB", { sensitivity: "base" });
+}
+
+function compareEpcRating(left, right) {
+  const rank = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7 };
+  const leftRank = rank[(left ?? "").toString().trim().toUpperCase()] ?? Number.POSITIVE_INFINITY;
+  const rightRank = rank[(right ?? "").toString().trim().toUpperCase()] ?? Number.POSITIVE_INFINITY;
+  if (leftRank === rightRank) {
+    return compareNullableStrings(left, right);
+  }
+  return leftRank - rightRank;
 }
 
 function makePill(text) {

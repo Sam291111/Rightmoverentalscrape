@@ -110,7 +110,7 @@ body::before {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -361,6 +361,12 @@ tbody tr:hover {
 
   .control-grid {
     justify-content: start;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 981px) {
+  .summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
