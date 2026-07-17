@@ -50,6 +50,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -473,6 +475,13 @@ jobs:
           pattern: detail-*
           path: .workflow/detail_chunks
 
+      - name: Sync latest main before publishing outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout -B main origin/main
+
       - name: Merge enriched chunks
         run: |
           python Scraper/merge_rental_enriched_chunks.py \
@@ -523,25 +532,24 @@ jobs:
       - name: Commit updated outputs
         shell: bash
         run: |
-          if git diff --quiet -- Scraper/output/history docs/data; then
-            echo "No lightweight history or dashboard changes to commit."
-            exit 0
-          fi
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Scraper/output/history docs/data
-          git commit -m "Update London rental history and dashboard data"
+
+          rebuild_history() {
+            python Scraper/build_london_rental_history.py \
+              --input-dir Scraper/output \
+              --output-dir Scraper/output/history \
+              --pages-data-dir docs/data
+          }
+
           for attempt in 1 2 3; do
-            echo "Sync/push attempt $attempt"
-            if ! git pull --rebase origin main; then
-              git rebase --abort || true
-              if [ "$attempt" -eq 3 ]; then
-                echo "Rebase failed after 3 attempts."
-                exit 1
-              fi
-              sleep 5
-              continue
+            git add Scraper/output/history docs/data
+            if git diff --cached --quiet -- Scraper/output/history docs/data; then
+              echo "No lightweight history or dashboard changes to commit."
+              exit 0
             fi
+            git commit -m "Update London rental history and dashboard data"
             if git push origin HEAD:main; then
               exit 0
             fi
@@ -549,5 +557,9 @@ jobs:
               echo "Push failed after 3 attempts."
               exit 1
             fi
-            sleep 5
+            echo "Push rejected. Refreshing from latest main and rebuilding lightweight history/dashboard outputs."
+            git fetch origin main
+            git reset --hard origin/main
+            rebuild_history
+            sleep $((attempt * 5))
           done
