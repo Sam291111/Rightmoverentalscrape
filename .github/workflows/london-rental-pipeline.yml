@@ -35,7 +35,7 @@ concurrency:
 
 jobs:
   search_manifest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
       search_chunk_matrix: ${{ steps.manifest.outputs.search_chunk_matrix }}
@@ -114,11 +114,11 @@ jobs:
   search_chunks:
     needs: search_manifest
     if: ${{ needs.search_manifest.outputs.search_chunk_count != '0' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 3
       matrix:
         chunk: ${{ fromJson(needs.search_manifest.outputs.search_chunk_matrix) }}
 
@@ -131,8 +131,29 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Set up Chrome
-        uses: browser-actions/setup-chrome@v1
+      - name: Verify preinstalled Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome_bin="$(
+            command -v google-chrome \
+              || command -v google-chrome-stable \
+              || command -v chrome \
+              || command -v chromium \
+              || command -v chromium-browser \
+              || true
+          )"
+          if [ -z "$chrome_bin" ]; then
+            echo "Chrome/Chromium is not available on this runner image." >&2
+            exit 1
+          fi
+          echo "Using browser: $chrome_bin"
+          "$chrome_bin" --version
+          if command -v chromedriver >/dev/null 2>&1; then
+            chromedriver --version
+          else
+            echo "chromedriver not found on PATH; the scraper can still fall back to undetected-chromedriver management."
+          fi
 
       - name: Install Python dependencies
         run: |
@@ -187,7 +208,7 @@ jobs:
       - search_manifest
       - search_chunks
     if: ${{ always() && needs.search_manifest.result == 'success' && needs.search_chunks.result != 'cancelled' && needs.search_manifest.outputs.search_chunk_count != '0' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
 
     outputs:
@@ -257,11 +278,11 @@ jobs:
   detail_chunks:
     needs: search_finalize
     if: ${{ needs.search_finalize.outputs.chunk_count != '0' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 3
       matrix:
         chunk: ${{ fromJson(needs.search_finalize.outputs.chunk_matrix) }}
 
@@ -274,8 +295,29 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Set up Chrome
-        uses: browser-actions/setup-chrome@v1
+      - name: Verify preinstalled Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome_bin="$(
+            command -v google-chrome \
+              || command -v google-chrome-stable \
+              || command -v chrome \
+              || command -v chromium \
+              || command -v chromium-browser \
+              || true
+          )"
+          if [ -z "$chrome_bin" ]; then
+            echo "Chrome/Chromium is not available on this runner image." >&2
+            exit 1
+          fi
+          echo "Using browser: $chrome_bin"
+          "$chrome_bin" --version
+          if command -v chromedriver >/dev/null 2>&1; then
+            chromedriver --version
+          else
+            echo "chromedriver not found on PATH; the scraper can still fall back to undetected-chromedriver management."
+          fi
 
       - name: Install Python dependencies
         run: |
@@ -317,7 +359,7 @@ jobs:
       - search_finalize
       - detail_chunks
     if: ${{ always() && needs.search_finalize.result == 'success' && needs.detail_chunks.result != 'cancelled' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 180
 
     steps:
