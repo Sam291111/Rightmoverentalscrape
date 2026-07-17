@@ -94,6 +94,12 @@ def parse_args():
         "--user-data-dir",
         help="Optional Chrome user-data directory to reuse cookies/session state across automated runs.",
     )
+    parser.add_argument(
+        "--restart-browser-every-pages",
+        type=int,
+        default=40,
+        help="Proactively recreate the browser after this many successfully scraped pages. Use 0 to disable.",
+    )
     return parser.parse_args()
 
 
@@ -938,6 +944,21 @@ def main():
             max_page_attempts = 3
             page_context = None
 
+            if (
+                args.restart_browser_every_pages
+                and args.restart_browser_every_pages > 0
+                and pages_scraped > 0
+                and pages_scraped % args.restart_browser_every_pages == 0
+            ):
+                print(f"  recycling browser session after {pages_scraped} successfully scraped pages")
+                driver = _recreate_browser(
+                    driver,
+                    page_url,
+                    headless=args.headless,
+                    user_data_dir=args.user_data_dir,
+                    reprompt=False,
+                )
+
             print(f"\nScraping rental page index {page_index}")
             print(f"  Page URL: {page_url}")
 
@@ -1094,6 +1115,7 @@ def main():
             "results_count": len(merged_results),
             "stop_reason": stop_reason,
             "last_page_index": last_page_index,
+            "restart_browser_every_pages": args.restart_browser_every_pages,
             "interactive": bool(args.interactive),
             "headless": bool(args.headless),
             "user_data_dir": args.user_data_dir,

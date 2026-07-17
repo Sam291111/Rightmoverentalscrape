@@ -156,15 +156,27 @@ jobs:
           fi
 
       - name: Install Python dependencies
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r Scraper/requirements.txt
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if python -m pip install --upgrade pip && python -m pip install -r Scraper/requirements.txt; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Python dependency installation failed after $attempt attempts." >&2
+              exit 1
+            fi
+            echo "Retrying Python dependency installation in $((attempt * 15))s..."
+            sleep $((attempt * 15))
+          done
 
       - name: Run adaptive rental search chunk
         env:
           SEARCH_UNITS_JSON: ${{ toJson(matrix.chunk.search_units) }}
+        shell: bash
         run: |
-          mkdir -p ".workflow/search/${{ matrix.chunk.chunk_label }}"
+          set -euo pipefail
           python3 - <<'PY'
           import json
           import os
@@ -183,14 +195,28 @@ jobs:
               search_args+=(--seed-outcode "$outcode")
             fi
           done < .workflow/search/seed_outcodes.txt
-          python Scraper/run_adaptive_london_rental_search.py \
-            --pages "${{ needs.search_manifest.outputs.pages }}" \
-            --max-results "${{ needs.search_manifest.outputs.max_results }}" \
-            --output-dir ".workflow/search/${{ matrix.chunk.chunk_label }}/output" \
-            --headless \
-            --run-dir ".workflow/search/${{ matrix.chunk.chunk_label }}/run" \
-            --user-data-dir ".workflow/search/${{ matrix.chunk.chunk_label }}/browser_profile" \
-            "${search_args[@]}"
+
+          chunk_dir=".workflow/search/${{ matrix.chunk.chunk_label }}"
+          for attempt in 1 2 3; do
+            rm -rf "$chunk_dir"
+            mkdir -p "$chunk_dir"
+            if python Scraper/run_adaptive_london_rental_search.py \
+              --pages "${{ needs.search_manifest.outputs.pages }}" \
+              --max-results "${{ needs.search_manifest.outputs.max_results }}" \
+              --output-dir "$chunk_dir/output" \
+              --headless \
+              --run-dir "$chunk_dir/run" \
+              --user-data-dir "$chunk_dir/browser_profile" \
+              "${search_args[@]}"; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Search chunk ${{ matrix.chunk.chunk_label }} failed after $attempt attempts." >&2
+              exit 1
+            fi
+            echo "Retrying search chunk ${{ matrix.chunk.chunk_label }} in $((attempt * 20))s..."
+            sleep $((attempt * 20))
+          done
 
       - name: Upload search chunk artifact
         if: ${{ always() }}
@@ -225,9 +251,20 @@ jobs:
           python-version: "3.11"
 
       - name: Install Python dependencies
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r Scraper/requirements.txt
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if python -m pip install --upgrade pip && python -m pip install -r Scraper/requirements.txt; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Python dependency installation failed after $attempt attempts." >&2
+              exit 1
+            fi
+            echo "Retrying Python dependency installation in $((attempt * 15))s..."
+            sleep $((attempt * 15))
+          done
 
       - name: Download search chunk artifacts
         uses: actions/download-artifact@v4
@@ -320,9 +357,20 @@ jobs:
           fi
 
       - name: Install Python dependencies
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r Scraper/requirements.txt
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if python -m pip install --upgrade pip && python -m pip install -r Scraper/requirements.txt; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Python dependency installation failed after $attempt attempts." >&2
+              exit 1
+            fi
+            echo "Retrying Python dependency installation in $((attempt * 15))s..."
+            sleep $((attempt * 15))
+          done
 
       - name: Download search artifact
         uses: actions/download-artifact@v4
@@ -331,17 +379,42 @@ jobs:
           path: .workflow/search_bundle
 
       - name: Run rental detail chunk
+        shell: bash
         run: |
-          mkdir -p ".workflow/detail/${{ matrix.chunk.chunk_label }}"
-          python Scraper/rightmove_rental_detail_scraper.py \
-            --search-results-json .workflow/search_bundle/search_results.json \
-            --start-index "${{ matrix.chunk.start_index }}" \
-            --end-index "${{ matrix.chunk.end_index }}" \
-            --output-dir ".workflow/detail/${{ matrix.chunk.chunk_label }}/output" \
-            --run-dir ".workflow/detail/${{ matrix.chunk.chunk_label }}/checkpoint" \
-            --no-interactive \
-            --headless \
-            --user-data-dir ".workflow/detail/${{ matrix.chunk.chunk_label }}/browser_profile"
+          set -euo pipefail
+          chunk_dir=".workflow/detail/${{ matrix.chunk.chunk_label }}"
+          checkpoint_dir="$chunk_dir/checkpoint"
+          output_dir="$chunk_dir/output"
+          profile_dir="$chunk_dir/browser_profile"
+          mkdir -p "$chunk_dir"
+
+          for attempt in 1 2 3; do
+            resume_args=()
+            if [ "$attempt" -gt 1 ] && [ -f "$checkpoint_dir/progress.json" ]; then
+              resume_args+=(--resume)
+            else
+              rm -rf "$checkpoint_dir" "$output_dir"
+            fi
+            rm -rf "$profile_dir"
+            if python Scraper/rightmove_rental_detail_scraper.py \
+              --search-results-json .workflow/search_bundle/search_results.json \
+              --start-index "${{ matrix.chunk.start_index }}" \
+              --end-index "${{ matrix.chunk.end_index }}" \
+              --output-dir "$output_dir" \
+              --run-dir "$checkpoint_dir" \
+              --no-interactive \
+              --headless \
+              --user-data-dir "$profile_dir" \
+              "${resume_args[@]}"; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Detail chunk ${{ matrix.chunk.chunk_label }} failed after $attempt attempts." >&2
+              exit 1
+            fi
+            echo "Retrying detail chunk ${{ matrix.chunk.chunk_label }} in $((attempt * 20))s..."
+            sleep $((attempt * 20))
+          done
 
       - name: Upload detail chunk artifact
         if: ${{ always() }}
@@ -372,9 +445,20 @@ jobs:
           python-version: "3.11"
 
       - name: Install Python dependencies
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r Scraper/requirements.txt
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if python -m pip install --upgrade pip && python -m pip install -r Scraper/requirements.txt; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Python dependency installation failed after $attempt attempts." >&2
+              exit 1
+            fi
+            echo "Retrying Python dependency installation in $((attempt * 15))s..."
+            sleep $((attempt * 15))
+          done
 
       - name: Download search artifact
         uses: actions/download-artifact@v4

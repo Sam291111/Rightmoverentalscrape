@@ -191,6 +191,12 @@ def parse_args():
         help="Optional Chrome user-data directory to reuse cookies/session state across automated runs.",
     )
     parser.add_argument(
+        "--restart-browser-every-listings",
+        type=int,
+        default=100,
+        help="Proactively recreate the browser after this many processed listings. Use 0 to disable.",
+    )
+    parser.add_argument(
         "--continue-on-listing-error",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -1318,7 +1324,8 @@ def main():
         )
         print(
             f"Rental detail speed settings: block_images={args.block_images} "
-            f"page_timeout={args.page_timeout}s settle={args.wait_seconds}s retries={args.listing_retries}"
+            f"page_timeout={args.page_timeout}s settle={args.wait_seconds}s "
+            f"retries={args.listing_retries} restart_every={args.restart_browser_every_listings}"
         )
 
         driver = _navigate_with_recovery(
@@ -1332,6 +1339,7 @@ def main():
         if args.interactive:
             prompt_manual_ready()
 
+        processed_since_browser_restart = 0
         for index, row in enumerate(search_results, start=1):
             listing_url = _canonical_listing_url(row.get("listing_url"))
             if not listing_url:
@@ -1341,6 +1349,24 @@ def main():
             if listing_key and listing_key in completed_listing_ids:
                 print(f"\n[{index}/{len(search_results)}] Skipping completed listing {listing_key}")
                 continue
+
+            if (
+                args.restart_browser_every_listings
+                and args.restart_browser_every_listings > 0
+                and processed_since_browser_restart >= args.restart_browser_every_listings
+            ):
+                print(
+                    f"  recycling browser session after {processed_since_browser_restart} processed listings"
+                )
+                driver = _recreate_browser(
+                    driver,
+                    listing_url,
+                    reprompt=False,
+                    block_images=args.block_images,
+                    headless=args.headless,
+                    user_data_dir=args.user_data_dir,
+                )
+                processed_since_browser_restart = 0
 
             print(f"\n[{index}/{len(search_results)}] {listing_url}")
             last_error = None
@@ -1422,6 +1448,7 @@ def main():
                     "page_timeout": args.page_timeout,
                     "settle_seconds": args.wait_seconds,
                     "listing_retries": args.listing_retries,
+                    "restart_browser_every_listings": args.restart_browser_every_listings,
                 }
                 _write_progress(run_dir, enriched_results, completed_listing_ids, progress_metadata)
                 if args.continue_on_listing_error:
@@ -1434,6 +1461,7 @@ def main():
                     enriched_results.append(fallback_row)
                     if listing_key:
                         completed_listing_ids.add(listing_key)
+                    processed_since_browser_restart += 1
                     failed_by_type, failed_http_status_counts, failed_browser_error_counts = _failure_summary(
                         failed_listings
                     )
@@ -1460,6 +1488,7 @@ def main():
                         "page_timeout": args.page_timeout,
                         "settle_seconds": args.wait_seconds,
                         "listing_retries": args.listing_retries,
+                        "restart_browser_every_listings": args.restart_browser_every_listings,
                     }
                     _write_progress(run_dir, enriched_results, completed_listing_ids, progress_metadata)
                     print(f"  using search-only fallback after retries: {failure['error']}")
@@ -1468,6 +1497,7 @@ def main():
             enriched_results.append(merged)
             if listing_key:
                 completed_listing_ids.add(listing_key)
+            processed_since_browser_restart += 1
 
             failed_by_type, failed_http_status_counts, failed_browser_error_counts = _failure_summary(failed_listings)
             progress_metadata = {
@@ -1493,6 +1523,7 @@ def main():
                 "page_timeout": args.page_timeout,
                 "settle_seconds": args.wait_seconds,
                 "listing_retries": args.listing_retries,
+                "restart_browser_every_listings": args.restart_browser_every_listings,
             }
             _write_progress(run_dir, enriched_results, completed_listing_ids, progress_metadata)
 
@@ -1525,6 +1556,7 @@ def main():
             "page_timeout": args.page_timeout,
             "settle_seconds": args.wait_seconds,
             "listing_retries": args.listing_retries,
+            "restart_browser_every_listings": args.restart_browser_every_listings,
         }
         _write_progress(run_dir, enriched_results, completed_listing_ids, metadata)
         json_path, csv_path, raw_path = save_outputs(
